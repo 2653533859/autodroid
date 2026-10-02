@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
 from fastapi import HTTPException
 from sqlmodel import Session, SQLModel, create_engine
@@ -142,7 +143,11 @@ class FlakyScoringTests(FlakyAnalysisTestBase):
     def test_endpoint_returns_pydantic_model(self):
         scenario = self._add_scenario("端点场景")
         self._add_status_sequence(scenario, ["PASS", "FAIL", "PASS", "FAIL", "PASS"])
-        result = get_flaky_report(days=30, limit=20, min_samples=5, include_steps=True, session=self.session)
+        # The endpoint uses the service clock; keep its window aligned with the
+        # fixed fixture dates while exercising the real report calculation.
+        with patch("backend.flaky_analysis.datetime", wraps=datetime) as clock:
+            clock.now.return_value = self.now
+            result = get_flaky_report(days=30, limit=20, min_samples=5, include_steps=True, session=self.session)
         self.assertEqual(result.days, 30)
         self.assertEqual(len(result.items), 1)
         self.assertEqual(result.items[0].scenario_name, "端点场景")
