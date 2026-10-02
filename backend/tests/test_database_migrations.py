@@ -211,7 +211,9 @@ class DatabaseMigrationsTests(unittest.TestCase):
         self.assertIn("folder_id", testscenario_cols)
 
         rows = self.conn.execute("SELECT version FROM schema_migration ORDER BY version").fetchall()
-        self.assertEqual(len(rows), 27)
+        self.assertEqual(len(rows), 29)
+        self.assertIn(("20260930_028_api_testing",), rows)
+        self.assertIn(("20260930_029_api_testing_owners",), rows)
 
         # Re-run should be no-op and keep same version records.
         _run_migrations_with_conn(self.conn)

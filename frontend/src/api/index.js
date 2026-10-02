@@ -40,6 +40,14 @@ api.interceptors.response.use(
 )
 
 export default {
+    // Typed, device-independent HTTP automation. Uses the same auth interceptors.
+    apiTesting: {
+        get: (path, params) => api.get(`/api-testing${path}`, { params }),
+        post: (path, data, config) => api.post(`/api-testing${path}`, data, config),
+        put: (path, data) => api.put(`/api-testing${path}`, data),
+        delete: path => api.delete(`/api-testing${path}`),
+        download: id => api.get(`/api-testing/runs/${id}/download`, { responseType: 'blob' }),
+    },
     // Auth
     login(data) {
         return api.post('/auth/token', data)

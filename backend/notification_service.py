@@ -15,7 +15,55 @@ logger = logging.getLogger(__name__)
 
 
 class NotificationService:
-    """飞书群机器人通知服务"""
+    """飞书群机器人通知服务。
+
+    通知直接连接 Webhook，不读取进程代理环境，避免 NO_PROXY 中 IPv6
+    条目被 HTTPX 解释为无效端口而在发出请求前失败。
+    """
+
+    @classmethod
+    def send_api_report_card(cls, *, run_id: str, name: str, status: str, env_name: str,
+                             duration_ms: float, total: int, passed: int, failed: int,
+                             skipped: int) -> Dict[str, Any]:
+        """HTTP report summaries intentionally contain no request/response data."""
+        webhook = cls._get_setting("api_testing_webhook")
+        if not webhook:
+            return {"status": "SKIPPED", "error": "未配置接口自动化 Webhook，请在系统设置的通知推送中配置"}
+        base = cls._get_setting("system_base_url")
+        if not base:
+            return {"status": "FAILED", "error": "请先配置系统访问地址，供飞书报告链接使用"}
+        from urllib.parse import quote, urlsplit
+        if urlsplit(base).scheme not in {"http", "https"}:
+            return {"status": "FAILED", "error": "系统访问地址必须是 HTTP/HTTPS URL"}
+        labels = {"PASS": "通过", "FAIL": "断言失败", "ERROR": "执行异常", "ABORTED": "已中止"}
+        card = {"msg_type": "interactive", "card": {
+            "config": {"wide_screen_mode": True},
+            "header": {"template": "green" if status == "PASS" else "red",
+                       "title": {"tag": "plain_text", "content": f"接口自动化 · {labels.get(status, status)} · {name}"}},
+            "elements": [
+                {"tag": "div", "text": {"tag": "plain_text", "content":
+                    f"场景：{name}\n环境：{env_name}\n结果：{labels.get(status, status)}\n"
+                    f"共 {total} 步 · 通过 {passed} · 失败 {failed} · 跳过 {skipped}\n耗时：{duration_ms / 1000:.2f} 秒"}},
+                {"tag": "action", "actions": [{"tag": "button", "type": "primary",
+                    "text": {"tag": "plain_text", "content": "查看接口测试报告"},
+                    "url": f"{base.rstrip('/')}/execution/reports/api/{quote(run_id, safe='')}"}]},
+            ]}}
+        from backend.api_testing.security import PRIVATE_HTTP_LOGS
+        log_token = PRIVATE_HTTP_LOGS.set(True)
+        try:
+            with httpx.Client(timeout=10, follow_redirects=False, trust_env=False) as client:
+                response = client.post(webhook, json=card)
+            if response.status_code != 200:
+                return {"status": "FAILED", "error": f"飞书返回 HTTP {response.status_code}"}
+            data = response.json()
+            if data.get("code") == 0 or data.get("StatusCode") == 0:
+                return {"status": "SENT"}
+            return {"status": "FAILED", "error": "飞书拒绝通知，请检查机器人配置"}
+        except Exception:
+            # Do not log exception URLs: webhook paths contain credentials.
+            return {"status": "FAILED", "error": "飞书连接失败或返回格式无效"}
+        finally:
+            PRIVATE_HTTP_LOGS.reset(log_token)
 
     @staticmethod
     def _get_setting(key: str) -> Optional[str]:
@@ -192,7 +240,7 @@ class NotificationService:
         )
 
         try:
-            with httpx.Client(timeout=10) as client:
+            with httpx.Client(timeout=10, follow_redirects=False, trust_env=False) as client:
                 resp = client.post(webhook_url, json=card)
                 if resp.status_code == 200:
                     body = resp.json()
@@ -288,7 +336,7 @@ class NotificationService:
         }
 
         try:
-            with httpx.Client(timeout=10) as client:
+            with httpx.Client(timeout=10, follow_redirects=False, trust_env=False) as client:
                 resp = client.post(webhook_url, json=card)
                 if resp.status_code == 200:
                     body = resp.json()
@@ -336,7 +384,7 @@ class NotificationService:
         }
 
         try:
-            with httpx.Client(timeout=10) as client:
+            with httpx.Client(timeout=10, follow_redirects=False, trust_env=False) as client:
                 resp = client.post(webhook_url, json=card)
                 if resp.status_code == 200:
                     body = resp.json()

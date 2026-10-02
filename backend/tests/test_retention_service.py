@@ -220,10 +220,14 @@ class RetentionCleanupTests(unittest.TestCase):
             session.commit()
 
         with patch.object(retention_service, "engine", self.engine), \
+             patch.object(retention_service, "datetime", wraps=datetime) as clock, \
              patch("backend.api.reports._delete_execution_artifacts"), \
              patch("backend.api.fastbot._delete_fastbot_artifacts_dir"), \
              patch("backend.api.compatibility._delete_run_artifacts"), \
              patch("backend.api.inspections._delete_inspection_run_artifacts"):
+            # Freeze only the clock, preserving the real setting lookup,
+            # retention cutoff, database filtering, and cleanup execution.
+            clock.now.return_value = self.now
             summary = run_retention_cleanup()
 
         self.assertTrue(summary["enabled"])

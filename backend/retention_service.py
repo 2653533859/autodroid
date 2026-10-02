@@ -244,6 +244,20 @@ def _cleanup_expired_inspection_runs(session: Session, cutoff: datetime) -> int:
     return deleted
 
 
+def _cleanup_expired_api_runs(session: Session, cutoff: datetime) -> int:
+    from backend.models import ApiRun, ApiStepResult
+    from sqlmodel import delete
+    rows = session.exec(select(ApiRun).where(
+        ApiRun.finished_at < cutoff,
+        ApiRun.status.notin_(["QUEUED", "RUNNING"]),
+        ApiRun.notification_status != "PENDING",
+    )).all()
+    for row in rows:
+        session.exec(delete(ApiStepResult).where(ApiStepResult.run_id == row.id))
+        session.delete(row)
+    return len(rows)
+
+
 def cleanup_expired_reports(days: int, now: Optional[datetime] = None) -> Dict[str, Any]:
     """删除 days 天前且已结束的报告数据，返回清理摘要。"""
     if days <= 0:
@@ -262,6 +276,7 @@ def cleanup_expired_reports(days: int, now: Optional[datetime] = None) -> Dict[s
         summary["fastbot_tasks"] = _cleanup_expired_fastbot_tasks(session, cutoff)
         summary["compatibility_runs"] = _cleanup_expired_compatibility_runs(session, cutoff)
         summary["inspection_runs"] = _cleanup_expired_inspection_runs(session, cutoff)
+        summary["api_runs"] = _cleanup_expired_api_runs(session, cutoff)
         session.commit()
     return summary
 

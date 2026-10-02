@@ -30,6 +30,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      '/api/api-testing': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true
+      },
       '/api/report-assets': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true

@@ -1,6 +1,7 @@
 fastapi>=0.128
 uvicorn>=0.40
-sqlmodel>=0.0.32
+# Keep the existing naive-datetime storage contract until a timezone migration is planned.
+sqlmodel==0.0.32
 pydantic>=2.12
 Pillow>=12.1
 jinja2>=3.1
