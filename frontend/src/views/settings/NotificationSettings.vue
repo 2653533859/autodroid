@@ -9,6 +9,7 @@ const loading = ref(false)
 const saving = ref(false)
 const loadError = ref('')
 const testingUi = ref(false)
+const testingApi = ref(false)
 const testingFb = ref(false)
 const testingAi = ref(false)
 const activeTab = ref('notification')
@@ -18,11 +19,13 @@ const assetStatus = ref(null)
 
 const form = ref({
   feishu_webhook: '',
+  api_testing_webhook: '',
   system_base_url: '',
   fastbot_webhook: '',
   ai_api_key: '',
   ai_api_base: '',
   ai_model: '',
+  api_testing_ai_enabled: false,
   model_inspection: false,
   inspection_identity_v2: false,
   inspection_similarity_convergence: false,
@@ -67,11 +70,13 @@ const loadSettings = async () => {
     const settings = res.data || []
     for (const s of settings) {
       if (s.key === 'feishu_webhook') form.value.feishu_webhook = s.value
+      if (s.key === 'api_testing_webhook') form.value.api_testing_webhook = s.value
       if (s.key === 'system_base_url') form.value.system_base_url = s.value
       if (s.key === 'fastbot_webhook') form.value.fastbot_webhook = s.value
       if (s.key === 'ai_api_key') form.value.ai_api_key = s.value
       if (s.key === 'ai_api_base') form.value.ai_api_base = s.value
       if (s.key === 'ai_model') form.value.ai_model = s.value
+      if (s.key === 'api_testing_ai_enabled') form.value.api_testing_ai_enabled = s.value === 'true'
     }
     form.value.model_inspection = flagRes.data?.model_inspection === true
     form.value.inspection_identity_v2 = flagRes.data?.inspection_identity_v2 === true
@@ -108,11 +113,13 @@ const handleSave = async () => {
   try {
     await api.saveSettings([
       { key: 'feishu_webhook', value: form.value.feishu_webhook, description: 'UI 场景报告 Webhook 地址' },
+      { key: 'api_testing_webhook', value: form.value.api_testing_webhook, description: '接口自动化报告 Webhook 地址' },
       { key: 'system_base_url', value: form.value.system_base_url, description: '系统访问基础地址' },
       { key: 'fastbot_webhook', value: form.value.fastbot_webhook, description: '智能探索报告 Webhook 地址' },
       { key: 'ai_api_key', value: form.value.ai_api_key, description: 'AI 模型 API Key' },
       { key: 'ai_api_base', value: form.value.ai_api_base, description: 'AI 模型 API 地址' },
       { key: 'ai_model', value: form.value.ai_model, description: 'AI 模型名称' },
+      { key: 'api_testing_ai_enabled', value: form.value.api_testing_ai_enabled ? 'true' : 'false', description: '接口自动化 AI 校验建议和失败解释（可选）' },
       {
         key: 'model_inspection',
         value: form.value.model_inspection ? 'true' : 'false',
@@ -182,6 +189,19 @@ const handleTestUi = async () => {
     ElMessage.error('发送失败: ' + (err.response?.data?.detail || err.message))
   } finally {
     testingUi.value = false
+  }
+}
+
+const handleTestApi = async () => {
+  if (!form.value.api_testing_webhook) return ElMessage.warning('请先填写接口自动化报告的 Webhook 地址')
+  testingApi.value = true
+  try {
+    await api.sendTestNotification(form.value.api_testing_webhook)
+    ElMessage.success('测试消息已发送，请检查对应群聊')
+  } catch (err) {
+    ElMessage.error('发送失败: ' + (err.response?.data?.detail || err.message))
+  } finally {
+    testingApi.value = false
   }
 }
 
@@ -282,7 +302,26 @@ onMounted(loadSettings)
             </el-form>
           </el-card>
 
-          <!-- 右侧：智能探索报告 -->
+          <el-card shadow="never" class="panel-card">
+            <template #header><div class="card-header"><span>接口自动化报告</span></div></template>
+            <el-form label-position="top">
+              <el-form-item label="Webhook 地址">
+                <el-input v-model="form.api_testing_webhook" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxx" clearable>
+                  <template #prefix><el-icon><Link /></el-icon></template>
+                </el-input>
+                <div class="form-tip">接口场景及定时任务开启飞书通知后，向此地址发送结果摘要和报告链接。</div>
+              </el-form-item>
+              <el-form-item label="系统访问地址">
+                <el-input v-model="form.system_base_url" placeholder="http://localhost:5173" disabled>
+                  <template #prefix><el-icon><Monitor /></el-icon></template>
+                </el-input>
+                <div class="form-tip">所有报告共用同一系统地址，请在 UI 场景报告中配置。</div>
+              </el-form-item>
+              <div class="form-actions"><el-button @click="handleTestApi" :loading="testingApi" :disabled="!form.api_testing_webhook">发送测试消息</el-button></div>
+            </el-form>
+          </el-card>
+
+          <!-- 智能探索报告 -->
           <el-card shadow="never" class="panel-card">
             <template #header>
               <div class="card-header"><span>智能探索报告</span></div>
@@ -327,7 +366,8 @@ onMounted(loadSettings)
             <ol>
               <li>UI 场景报告：填写 Webhook 地址，定时任务执行完毕后自动推送执行结果卡片。</li>
               <li>智能探索报告：填写 Webhook 地址，定时探索任务完成后自动推送探索结果卡片。</li>
-              <li>两侧通知可使用相同或不同的 Webhook 地址，实现分群推送。</li>
+              <li>接口自动化报告：填写独立的 Webhook，场景手动运行或定时任务开启通知后推送；未配置时跳过，不使用 UI 场景的地址。</li>
+              <li>三类通知可使用相同或不同的 Webhook 地址，实现分群推送。</li>
               <li>点击各板块的测试按钮可单独验证配置是否正确。</li>
             </ol>
           </div>
@@ -386,6 +426,10 @@ onMounted(loadSettings)
               </el-form-item>
             </div>
 
+            <el-form-item label="接口自动化 AI 辅助">
+              <el-switch v-model="form.api_testing_ai_enabled" />
+              <div class="form-tip">启用响应校验建议与失败解释。仅发送必要的字段结构和脱敏摘要，建议确认后加入草稿；不会自动执行请求。</div>
+            </el-form-item>
             <div class="form-actions">
               <el-button
                 @click="handleTestAi"

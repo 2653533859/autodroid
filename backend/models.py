@@ -146,6 +146,84 @@ class SystemSetting(SQLModel, table=True):
     description: Optional[str] = None
 
 
+class ApiFolder(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    kind: str = "interface"
+    parent_id: Optional[int] = Field(default=None, foreign_key="apifolder.id")
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+class ApiDefinition(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    description: str = ""
+    folder_id: Optional[int] = Field(default=None, foreign_key="apifolder.id", index=True)
+    version: int = 1
+    config: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    sample: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    updater_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ApiScenario(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    description: str = ""
+    folder_id: Optional[int] = Field(default=None, foreign_key="apifolder.id", index=True)
+    env_id: Optional[int] = Field(default=None, foreign_key="environment.id")
+    version: int = 1
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    updater_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ApiScenarioStep(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("scenario_id", "step_id"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    scenario_id: int = Field(foreign_key="apiscenario.id", index=True)
+    step_id: str
+    position: int
+    interface_id: Optional[int] = Field(default=None, foreign_key="apidefinition.id", index=True)
+    definition: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class ApiRun(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    # Historical runs survive deletion of the original scenario/task.
+    scenario_id: Optional[int] = Field(default=None, index=True)
+    scenario_name: str
+    env_id: Optional[int] = None
+    env_name: str = "未选择环境"
+    executor_id: Optional[int] = None
+    executor_name: str = ""
+    task_id: Optional[int] = Field(default=None, index=True)
+    status: str = Field(default="QUEUED", index=True)
+    snapshot: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    error: Optional[str] = None
+    notification_status: str = "DISABLED"
+    notification_error: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now, index=True)
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    duration_ms: float = 0
+
+
+class ApiStepResult(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("run_id", "step_id"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: str = Field(foreign_key="apirun.id", index=True)
+    step_id: str
+    position: int
+    name: str
+    status: str = "PENDING"
+    duration_ms: float = 0
+    detail: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+
+
 class FastbotTask(SQLModel, table=True):
     """Fastbot 智能探索任务"""
     id: Optional[int] = Field(default=None, primary_key=True)

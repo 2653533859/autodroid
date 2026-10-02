@@ -1518,6 +1518,21 @@ def _adopt_inspection_migration_aliases(cursor) -> None:
         )
 
 
+def _migrate_api_testing_schema(cursor) -> None:
+    # New tables are created by SQLModel.create_all before versioned migrations.
+    if _table_exists(cursor, "apirun"):
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_apirun_active_task ON apirun(task_id) WHERE task_id IS NOT NULL AND status IN ('QUEUED','RUNNING')")
+
+
+def _migrate_api_testing_owners(cursor) -> None:
+    for table in ("apidefinition", "apiscenario"):
+        if not _table_exists(cursor, table):
+            continue
+        columns = {row[1] for row in cursor.execute(f"PRAGMA table_info({table})").fetchall()}
+        if "updater_id" not in columns:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN updater_id INTEGER REFERENCES user(id)")
+
+
 def _run_migrations_with_conn(conn) -> None:
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys")
@@ -1600,6 +1615,8 @@ def _run_migrations_with_conn(conn) -> None:
                 "20260731_027_remote_device_agents",
                 _migrate_remote_device_agents,
             ),
+            ("20260930_028_api_testing", _migrate_api_testing_schema),
+            ("20260930_029_api_testing_owners", _migrate_api_testing_owners),
         ]
 
         for version, migration_func in migration_plan:

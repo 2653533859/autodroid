@@ -21,12 +21,19 @@ export const scheduledTaskType = task => {
   const type = String(taskConfig(task)._task_type || 'ui').toLowerCase()
   if (type === 'fastbot') return 'fastbot'
   if (type === 'inspection') return 'inspection'
+  if (type === 'api') return 'api'
   return 'ui'
 }
 
 export const scheduledTaskExecution = (task, lookups = {}) => {
   const config = taskConfig(task)
   const type = scheduledTaskType(task)
+
+  if (type === 'api') {
+    const environment = findById(lookups.environments, config.env_id)
+    return { type, typeLabel: '接口自动化', tagType: 'primary', title: task?.scenario_name || '接口场景',
+      detail: environment?.name ? `环境：${environment.name} · 无需设备` : '无需设备' }
+  }
 
   if (type === 'fastbot') {
     const minutes = Math.max(1, Math.round(Number(config.fb_duration || 1800) / 60))

@@ -74,6 +74,7 @@ from backend.api import inspections
 from backend.api import device_agents
 from backend.api import assets
 from backend.api import environments
+from backend.api import api_testing
 from backend.api import ai
 from backend.api import limiter
 from backend.api import deps
@@ -121,6 +122,7 @@ _register_http_routers(app, include_in_schema=False, ai_prefix=None, include_set
 # Content-addressed evidence is intentionally available only under the
 # authenticated canonical API prefix; no unauthenticated legacy alias.
 api_router.include_router(assets.router, prefix="/assets", tags=["assets"])
+api_router.include_router(api_testing.router, prefix="/api-testing", tags=["api-testing"])
 
 api_router.include_router(
     stream_rest_router,
@@ -181,6 +183,8 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    from backend.api_testing.service import recover_runs
+    recover_runs()
     # 启动 Scrcpy 设备监听（独立守护线程，不阻塞主线程）
     device_manager.start_tracking()
 
@@ -202,6 +206,8 @@ def on_startup():
 
     # 初始化定时任务调度器并恢复活跃任务
     _restore_scheduled_tasks()
+    from backend.api_testing.service import register_debug_reaper
+    register_debug_reaper()
 
     # 注册报告保留策略每日清理（保留天数由系统配置 report_retention_days 控制，默认关闭）
     try:
@@ -237,6 +243,8 @@ async def on_shutdown_device_agents():
 
 @app.on_event("shutdown")
 def on_shutdown():
+    from backend.api_testing.service import shutdown as shutdown_api_testing
+    shutdown_api_testing()
     try:
         device_manager.stop_tracking()
     except Exception:

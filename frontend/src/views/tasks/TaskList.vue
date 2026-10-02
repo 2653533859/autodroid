@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Delete, Search, Refresh, Edit } from '@element-plus/icons-vue'
 import api from '@/api'
@@ -49,7 +50,8 @@ const editingId = ref(null)
 
 const form = reactive({
     name: '',
-    task_type: 'ui',  // ui | fastbot | inspection
+    task_type: 'ui',  // ui | api | fastbot | inspection
+    api_scenario_id: null,
     scenario_id: null,
     device_serials: [],
     env_id: null,
@@ -177,6 +179,7 @@ const fetchInspectionOptions = async () => {
 }
 
 const resetForm = () => {
+    form.api_scenario_id = null
     form.name = ''
     form.task_type = 'ui'
     form.scenario_id = null
@@ -208,6 +211,7 @@ const handleCreate = () => {
 
 const handleTaskTypeChange = value => {
     if (value === 'inspection') fetchInspectionOptions()
+    if (value === 'api') { form.device_serials = []; fetchApiScenarios() }
 }
 
 const handleEdit = (row) => {
@@ -223,7 +227,12 @@ const handleEdit = (row) => {
     form.env_id = config.env_id || null
 
     // 判断任务类型
-    if (config._task_type === 'fastbot') {
+    if (config._task_type === 'api') {
+        form.task_type = 'api'
+        form.api_scenario_id = config.api_scenario_id
+        form.device_serials = []
+        fetchApiScenarios()
+    } else if (config._task_type === 'fastbot') {
         form.task_type = 'fastbot'
         form.fb_package_name = config.fb_package_name || ''
         form.fb_duration_min = Math.round((config.fb_duration || 1800) / 60)
@@ -259,7 +268,7 @@ const buildPayload = () => {
     const payload = {
         name: form.name,
         scenario_id: form.task_type === 'ui' ? form.scenario_id : null,
-        device_serials: form.device_serials,
+        device_serials: form.task_type === 'api' ? [] : form.device_serials,
         strategy: form.strategy,
         strategy_config: {},
         enable_notification: form.enable_notification,
@@ -280,7 +289,10 @@ const buildPayload = () => {
 
     // 附加任务类型标记和 Fastbot/UI 配置
     payload.strategy_config._task_type = form.task_type
-    if (form.task_type === 'fastbot') {
+    if (form.task_type === 'api') {
+        payload.strategy_config.api_scenario_id = form.api_scenario_id
+        payload.strategy_config.env_id = form.env_id || null
+    } else if (form.task_type === 'fastbot') {
         payload.strategy_config.fb_package_name = form.fb_package_name
         payload.strategy_config.fb_duration = form.fb_duration_min * 60
         payload.strategy_config.fb_throttle = form.fb_throttle
@@ -300,6 +312,7 @@ const buildPayload = () => {
 }
 
 const handleSubmit = async () => {
+    if (form.task_type === 'api' && !form.api_scenario_id) return ElMessage.warning('请选择接口场景')
     if (!form.name) return ElMessage.warning('请输入任务名称')
     if (form.task_type === 'ui' && !form.scenario_id) return ElMessage.warning('请选择执行场景')
     if (form.task_type === 'ui' && (!form.device_serials || form.device_serials.length === 0)) return ElMessage.warning('UI 任务必须选择执行设备')
@@ -370,12 +383,29 @@ const weekDayOptions = [
     { label: '日', value: 6 },
 ]
 
+const apiScenarios = ref([])
+const taskRoute = useRoute()
+async function fetchApiScenarios() {
+    try { apiScenarios.value = (await api.apiTesting.get('/scenarios', { limit: 1000 })).data.items }
+    catch { ElMessage.error('获取接口场景失败') }
+}
+
 onMounted(() => {
     fetchTasks()
     fetchDevices()
     fetchEnvironments()
     fetchInspectionProfiles()
 })
+
+watch(() => taskRoute.fullPath, () => {
+    if (taskRoute.path === '/execution/tasks' && taskRoute.query.api_scenario_id) {
+        handleCreate()
+        form.task_type = 'api'
+        form.api_scenario_id = Number(taskRoute.query.api_scenario_id)
+        form.env_id = taskRoute.query.env_id ? Number(taskRoute.query.env_id) : null
+        fetchApiScenarios()
+    }
+}, { immediate: true })
 </script>
 
 <template>
@@ -411,7 +441,7 @@ onMounted(() => {
                     <template #default="{ row }">
                         <div class="task-cell">
                             <span class="task-name" @click="handleEdit(row)">{{ row.name }}</span>
-                            <span class="task-device-count">{{ row.device_serials?.length || 0 }} 台设备</span>
+                            <span class="task-device-count">{{ row.strategy_config?._task_type === 'api' ? '无需设备' : `${row.device_serials?.length || 0} 台设备` }}</span>
                         </div>
                     </template>
                 </el-table-column>
@@ -497,6 +527,7 @@ onMounted(() => {
                 <el-form-item label="任务类型">
                     <el-radio-group v-model="form.task_type" @change="handleTaskTypeChange">
                         <el-radio-button value="ui">UI 自动化</el-radio-button>
+                        <el-radio-button value="api">接口自动化</el-radio-button>
                         <el-radio-button value="fastbot">智能探索</el-radio-button>
                         <el-radio-button v-if="canUseInspection" value="inspection">智能巡检</el-radio-button>
                     </el-radio-group>
@@ -524,6 +555,11 @@ onMounted(() => {
                 </el-form-item>
 
                 <!-- 智能探索专属：Fastbot 配置 -->
+                <el-form-item v-if="form.task_type === 'api'" label="接口场景">
+                    <el-select v-model="form.api_scenario_id" placeholder="选择接口场景" filterable style="width:100%" @visible-change="$event && fetchApiScenarios()">
+                        <el-option v-for="s in apiScenarios" :key="s.id" :label="s.name" :value="s.id" />
+                    </el-select>
+                </el-form-item>
                 <template v-if="form.task_type === 'fastbot'">
                     <el-form-item label="目标包名">
                         <el-input v-model="form.fb_package_name" placeholder="com.example.app" />
@@ -586,7 +622,7 @@ onMounted(() => {
                     </el-form-item>
                 </template>
 
-                <el-form-item label="执行设备">
+                <el-form-item v-if="form.task_type !== 'api'" label="执行设备">
                     <el-select
                         v-model="form.device_serials"
                         placeholder="请选择运行设备"
@@ -607,7 +643,7 @@ onMounted(() => {
                     </el-select>
                 </el-form-item>
 
-                <el-form-item v-if="form.task_type === 'ui'" label="运行环境">
+                <el-form-item v-if="['ui', 'api'].includes(form.task_type)" label="运行环境">
                     <el-select
                         v-model="form.env_id"
                         placeholder="选择环境 (可选)"

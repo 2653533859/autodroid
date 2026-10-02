@@ -121,6 +121,21 @@ const routes = [
         ]
       },
 
+      // ────── 接口自动化 ──────
+      {
+        path: 'api-testing',
+        meta: { title: '接口自动化', icon: Collection },
+        redirect: '/api-testing/interfaces',
+        children: [
+          { path: 'interfaces', name: 'api-interface-list', meta: { title: '接口管理' }, component: () => import('../views/api-testing/AssetList.vue') },
+          { path: 'interfaces/create', name: 'api-interface-create', meta: { title: '新建接口', hidden: true }, component: () => import('../views/api-testing/InterfaceEditor.vue') },
+          { path: 'interfaces/:id/edit', name: 'api-interface-edit', meta: { title: '编辑接口', hidden: true }, component: () => import('../views/api-testing/InterfaceEditor.vue') },
+          { path: 'scenarios', name: 'api-scenario-list', meta: { title: '自动化场景' }, component: () => import('../views/api-testing/AssetList.vue') },
+          { path: 'scenarios/create', name: 'api-scenario-create', meta: { title: '新建接口场景', hidden: true }, component: () => import('../views/api-testing/ScenarioEditor.vue') },
+          { path: 'scenarios/:id/edit', name: 'api-scenario-edit', meta: { title: '编辑接口场景', hidden: true }, component: () => import('../views/api-testing/ScenarioEditor.vue') },
+        ],
+      },
+
       // ────── 🧪 专项测试 ──────
       {
         path: 'special',
@@ -208,6 +223,11 @@ const routes = [
             name: 'compatibility-report-detail',
             meta: { title: '兼容性报告详情', hidden: true },
             component: () => import('../views/reports/CompatibilityReportDetail.vue')
+          },
+          {
+            path: 'reports/api/:id', name: 'api-report-detail',
+            meta: { title: '接口测试报告', hidden: true },
+            component: () => import('../views/api-testing/RunDetail.vue'),
           },
           {
             path: 'reports/inspection/:id',

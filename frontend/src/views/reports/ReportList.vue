@@ -15,6 +15,7 @@ import {
     inspectionRunStatusLabel,
 } from '@/utils/inspectionRunPresentation'
 import FlakyAnalysisDrawer from './FlakyAnalysisDrawer.vue'
+import ApiRunList from '../api-testing/RunList.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -22,7 +23,7 @@ const { isMobileMode } = useClientMode()
 const userStore = useUserStore()
 
 // ========== 顶层 Tab ==========
-const resolveTab = (tab) => (['fastbot', 'startup', 'compatibility', 'inspection'].includes(tab) ? tab : 'ui')
+const resolveTab = (tab) => (['api', 'fastbot', 'startup', 'compatibility', 'inspection'].includes(tab) ? tab : 'ui')
 const inspectionEnabled = computed(() => userStore.featureFlags?.model_inspection === true)
 const resolveAvailableTab = tab => {
     const resolved = resolveTab(tab)
@@ -501,6 +502,7 @@ const getStartupModes = (task) => {
 const getStartupIterations = (task) => task.summary?.startup_config?.iterations || task.duration || '-'
 
 const handleTabChange = (tab) => {
+    if (tab === 'api') return
     fetchDevices()
     if (tab === 'fastbot') {
         fetchFbTasks()
@@ -557,6 +559,7 @@ const deactivatePage = () => {
 }
 
 const refreshReportCenter = () => {
+    if (activeTab.value === 'api') return
     fetchDevices()
     fetchData()
     fetchFbTasks()
@@ -914,6 +917,9 @@ onUnmounted(() => {
                     </div>
                 </el-tab-pane>
 
+                <el-tab-pane label="接口自动化" name="api">
+                    <ApiRunList v-if="activeTab === 'api'" />
+                </el-tab-pane>
                 <el-tab-pane label="智能探索报告" name="fastbot">
                     <!-- 探索报告筛选栏 -->
                     <div class="list-header">

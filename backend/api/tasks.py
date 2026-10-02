@@ -40,7 +40,7 @@ router = APIRouter()
 
 def _task_type(config: dict) -> str:
     value = str((config or {}).get("_task_type") or "ui").strip().lower()
-    if value not in {"ui", "fastbot", "inspection"}:
+    if value not in {"ui", "fastbot", "inspection", "api"}:
         raise HTTPException(status_code=400, detail=f"不支持的定时任务类型: {value}")
     return value
 
@@ -59,6 +59,21 @@ def _validate_scheduled_target(
     lease remains the source of truth.
     """
     task_type = _task_type(config)
+    if task_type == "api":
+        from backend.models import ApiScenario
+        from backend.api_testing.service import load_env, scenario_steps
+        from backend.api_testing.values import validate_steps
+        target = session.get(ApiScenario, config.get("api_scenario_id")) if config.get("api_scenario_id") else None
+        if target is None:
+            raise HTTPException(422, "请选择接口场景")
+        env, _, _ = load_env(session, config.get("env_id", target.env_id))
+        steps = scenario_steps(session, target.id)
+        errors = validate_steps(steps, env, validation_mode="run")
+        if errors:
+            raise HTTPException(422, errors)
+        if device_serials:
+            raise HTTPException(422, "接口任务不需要执行设备")
+        return None
     if task_type == "ui":
         if scenario_id is None:
             raise HTTPException(status_code=400, detail="UI 定时任务必须选择场景")
@@ -130,6 +145,18 @@ def _validate_scheduled_target(
 
 def _run_scheduled_scenario(task_id: int):
     """调度器回调：根据任务类型执行 UI 场景、Fastbot 或模型化巡检。"""
+    from backend.database import engine
+    # Dispatch before importing device execution code: HTTP runs need no driver.
+    with Session(engine) as api_session:
+        scheduled = api_session.get(ScheduledTask, task_id)
+        try:
+            scheduled_config = json.loads(scheduled.strategy_config or "{}") if scheduled else {}
+        except ValueError:
+            scheduled_config = {}
+        if scheduled_config.get("_task_type") == "api":
+            from backend.api_testing.service import run_scheduled
+            run_scheduled(task_id, db_engine=engine)
+            return
     from backend.api.scenarios import (
         _summarize_precheck_failure,
         execute_scenario_batch_background,
@@ -138,7 +165,6 @@ def _run_scheduled_scenario(task_id: int):
     from backend.models import TestExecution, TestResult
     from backend.notification_service import NotificationService
     from sqlmodel import Session as SQLSession
-    from backend.database import engine
 
     runnable_device_serials: List[str] = []
     blocked_prechecks: List[dict] = []
@@ -564,6 +590,11 @@ def _scheduled_target_name(
         except (json.JSONDecodeError, TypeError):
             config = {}
     task_type = str((config or {}).get("_task_type") or "ui").strip().lower()
+    if task_type == "api":
+        from backend.models import ApiScenario
+        api_id = (config or {}).get("api_scenario_id")
+        target = session.get(ApiScenario, api_id) if api_id else None
+        return target.name if target else "接口场景（已删除）"
     if task_type == "inspection":
         profile_id = (config or {}).get("inspection_profile_id")
         try:

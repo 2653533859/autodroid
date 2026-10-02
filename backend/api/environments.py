@@ -48,6 +48,19 @@ def delete_environment(env_id: int, session: Session = Depends(get_session)):
     env = session.get(Environment, env_id)
     if not env:
         raise HTTPException(status_code=404, detail="环境不存在")
+    import json
+    from backend.models import ApiScenario, ScheduledTask
+    names = session.exec(select(ApiScenario.name).where(ApiScenario.env_id == env_id)).all()
+    tasks = []
+    for task in session.exec(select(ScheduledTask)).all():
+        try:
+            config = json.loads(task.strategy_config or "{}")
+        except ValueError:
+            continue
+        if config.get("_task_type") == "api" and config.get("env_id") == env_id:
+            tasks.append(task.name)
+    if names or tasks:
+        raise HTTPException(409, {"message": "环境被接口自动化引用，不能删除", "scenarios": names, "tasks": tasks})
     # 级联删除该环境下所有变量
     variables = session.exec(select(GlobalVariable).where(GlobalVariable.env_id == env_id)).all()
     for v in variables:
