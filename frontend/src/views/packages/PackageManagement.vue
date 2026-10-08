@@ -293,6 +293,7 @@ const openInstallDialog = async (row) => {
 
 /** 确认安装 */
 const handleInstall = async () => {
+  if (installLoading.value) return
   if (!selectedSerial.value) {
     ElMessage.warning('请选择目标设备')
     return
@@ -356,13 +357,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="package-management">
+  <div class="package-management ad-page">
 
     <!-- 顶部工具栏 -->
-    <div class="toolbar">
+    <div class="toolbar ad-page-header">
       <div class="toolbar-left">
-        <el-icon :size="22" color="#409eff"><Box /></el-icon>
-        <h2 class="page-title">App包管理</h2>
+        <el-icon :size="22" color="var(--ad-primary)"><Box /></el-icon>
+        <h2 class="page-title">安装包</h2>
         <el-tag type="info" size="small" style="margin-left: 12px;">
           {{ total }} 个安装包
         </el-tag>
@@ -387,10 +388,10 @@ onMounted(() => {
       </el-upload>
     </el-card>
 
-    <el-dialog
+    <el-dialog class="ad-dialog"
       v-model="uploadDialogVisible"
       title="安装包上传"
-      width="460px"
+      width="min(460px, calc(100vw - 32px))"
       :show-close="uploadDialogCanClose"
       :close-on-click-modal="uploadDialogCanClose"
       :close-on-press-escape="uploadDialogCanClose"
@@ -432,7 +433,7 @@ onMounted(() => {
       <el-table
         :data="packages"
         v-loading="loading"
-        stripe
+        class="ad-table"
         style="width: 100%;"
         empty-text="暂无安装包，请上传 APK 或 IPA 文件"
       >
@@ -451,7 +452,7 @@ onMounted(() => {
                 v-if="row.is_latest"
                 type="success"
                 size="small"
-                effect="dark"
+                effect="plain"
                 round
               >最新</el-tag>
             </div>
@@ -459,14 +460,14 @@ onMounted(() => {
         </el-table-column>
 
         <!-- 包名 -->
-        <el-table-column label="包名 / Bundle ID" prop="package_name" min-width="220">
+        <el-table-column label="包名 / Bundle ID" prop="package_name" min-width="170" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="mono-text">{{ row.package_name || '—' }}</span>
           </template>
         </el-table-column>
 
         <!-- 版本号 -->
-        <el-table-column label="版本号" min-width="140">
+        <el-table-column label="版本号" min-width="110">
           <template #default="{ row }">
             <span>{{ row.version_name || '—' }}</span>
             <span v-if="row.version_code" class="version-code">({{ row.version_code }})</span>
@@ -474,14 +475,14 @@ onMounted(() => {
         </el-table-column>
 
         <!-- 文件大小 -->
-        <el-table-column label="文件大小" width="120" align="center">
+        <el-table-column label="文件大小" width="85" align="center">
           <template #default="{ row }">
             {{ formatSize(row.file_size) }}
           </template>
         </el-table-column>
 
         <!-- 上传时间 -->
-        <el-table-column label="上传时间" width="170" align="center">
+        <el-table-column label="上传时间" width="145" align="center">
           <template #default="{ row }">
             {{ formatTime(row.upload_time) }}
           </template>
@@ -491,17 +492,12 @@ onMounted(() => {
         <el-table-column label="上传者" prop="uploader_name" width="100" align="center" />
 
         <!-- 操作 -->
-        <el-table-column label="操作" width="220" align="center" fixed="right">
+        <el-table-column label="操作" width="120" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="Cellphone" @click="openInstallDialog(row)">
               安装
             </el-button>
-            <el-button type="primary" link :icon="Download" @click="handleDownload(row)">
-              下载
-            </el-button>
-            <el-button type="danger" link :icon="Delete" @click="handleDelete(row)">
-              删除
-            </el-button>
+            <el-dropdown trigger="click" @command="$event==='download' ? handleDownload(row) : handleDelete(row)"><el-button link :aria-label="row.app_name+'的更多操作'">更多</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="download">下载</el-dropdown-item><el-dropdown-item command="delete" divided>删除</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -519,14 +515,14 @@ onMounted(() => {
     </el-card>
 
     <!-- 安装到设备弹窗 -->
-    <el-dialog
+    <el-dialog class="ad-dialog"
       v-model="installDialogVisible"
       :title="installTarget?.platform === 'ios' ? '安装 IPA 到指定 iPhone' : '推送到指定设备'"
-      width="480px"
+      width="min(480px, calc(100vw - 32px))"
       align-center
       destroy-on-close
     >
-      <div v-if="installTarget" style="margin-bottom: 16px; color: #606266;">
+      <div v-if="installTarget" style="margin-bottom: 16px; color: var(--ad-text);">
         即将安装：<strong>{{ installTarget.app_name }}</strong> v{{ installTarget.version_name }}
       </div>
       <el-alert
@@ -537,7 +533,7 @@ onMounted(() => {
         show-icon
         style="margin-bottom: 16px;"
       />
-      <el-form label-width="80px">
+      <el-form label-position="top">
         <el-form-item label="目标设备">
           <el-select
             v-model="selectedSerial"
@@ -553,7 +549,7 @@ onMounted(() => {
               :disabled="!isDeviceInstallable(d)"
             >
               <span>{{ getDeviceDisplayName(d) }}</span>
-              <span style="float: right; color: #909399; font-size: 12px;">
+              <span style="float: right; color: var(--ad-muted); font-size: 12px;">
                 {{ getDeviceStatusText(d) }}
               </span>
             </el-option>
@@ -573,10 +569,10 @@ onMounted(() => {
 
 <style scoped>
 .package-management {
-  padding: 20px 24px;
+  padding: 16px;
   height: 100%;
   overflow-y: auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
+  background: var(--ad-bg);
 }
 
 /* 工具栏 */
@@ -584,11 +580,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding: 16px 20px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 12px;
+  padding: 0;
+  background: var(--ad-surface);
+  border-radius: var(--ad-panel-radius);
+  box-shadow: none;
 }
 
 .toolbar-left {
@@ -599,15 +595,15 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #303133;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ad-text);
 }
 
 /* 上传区 */
 .upload-card {
-  margin-bottom: 20px;
-  border-radius: 12px;
+  margin-bottom: 12px;
+  border-radius: var(--ad-panel-radius);
   border: none;
 }
 
@@ -617,38 +613,38 @@ onMounted(() => {
 
 .upload-card :deep(.el-upload-dragger) {
   width: 100%;
-  padding: 40px 20px;
-  border: 2px dashed #dcdfe6;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e8f4fd 100%);
+  padding: 14px 16px;
+  border: 1px dashed var(--ad-border);
+  border-radius: var(--ad-panel-radius);
+  background: var(--ad-bg);
   transition: all 0.3s ease;
 }
 
 .upload-card :deep(.el-upload-dragger:hover) {
-  border-color: #409eff;
-  background: linear-gradient(135deg, #e6f3ff 0%, #d4edff 100%);
+  border-color: var(--ad-primary);
+  background: var(--ad-bg);
 }
 
 .upload-icon {
-  font-size: 52px;
-  color: #409eff;
-  margin-bottom: 12px;
+  font-size: 24px;
+  color: var(--ad-primary);
+  margin-bottom: 4px;
 }
 
 .upload-text {
-  font-size: 15px;
-  color: #606266;
+  font-size: 13px;
+  color: var(--ad-text);
 }
 
 .upload-text em {
-  color: #409eff;
+  color: var(--ad-primary);
   font-style: normal;
   font-weight: 600;
 }
 
 .upload-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--ad-muted);
   margin-top: 8px;
 }
 
@@ -658,9 +654,9 @@ onMounted(() => {
 }
 
 .upload-file-name {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
   word-break: break-all;
 }
 
@@ -672,23 +668,23 @@ onMounted(() => {
 }
 
 .upload-meta-grid span {
-  color: #909399;
+  color: var(--ad-muted);
 }
 
 .upload-meta-grid strong {
-  color: #303133;
+  color: var(--ad-text);
   font-weight: 600;
 }
 
 .upload-status-text {
   min-height: 20px;
   font-size: 13px;
-  color: #606266;
+  color: var(--ad-text);
 }
 
 /* 表格区 */
 .table-card {
-  border-radius: 12px;
+  border-radius: var(--ad-panel-radius);
   border: none;
 }
 
@@ -700,18 +696,18 @@ onMounted(() => {
 
 .app-name {
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .mono-text {
   font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
   font-size: 12px;
-  color: #606266;
+  color: var(--ad-text);
 }
 
 .version-code {
   font-size: 12px;
-  color: #909399;
+  color: var(--ad-muted);
   margin-left: 4px;
 }
 
@@ -720,4 +716,6 @@ onMounted(() => {
   justify-content: flex-end;
   padding: 16px 0 4px;
 }
+.toolbar{background:transparent}.table-card{border:1px solid var(--ad-border)}.table-card :deep(.el-card__body){padding:12px}.upload-card{background:transparent}.upload-card :deep(.el-card__body){padding:0}.upload-card :deep(.el-upload-dragger){background:var(--ad-surface)}.upload-card :deep(.el-upload-dragger:hover){background:var(--ad-primary-soft)}.app-name-cell{min-width:0}.app-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.upload-icon{vertical-align:middle;margin-right:12px;display:inline-flex}.upload-text{display:inline-block}.upload-tip{margin-top:4px}.el-dropdown{vertical-align:middle;margin-left:12px}
+@media(max-width:760px){.package-management{padding:12px}.toolbar-left{flex-wrap:wrap}.upload-text,.upload-tip,.upload-file-name,.upload-status-text,.mono-text,.version-code{font-size:14px}.upload-icon{display:none}.upload-text{line-height:1.6}.upload-card :deep(.el-upload-dragger){padding:16px}.pagination-wrapper{justify-content:flex-start;overflow:auto}}
 </style>

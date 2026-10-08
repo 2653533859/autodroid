@@ -1,4 +1,5 @@
 <script setup>
+import { chartColors } from '@/utils/chartTheme'
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
@@ -26,6 +27,7 @@ const run = ref(null)
 const devices = ref([])
 const selectedResult = ref(null)
 const resultDrawerVisible = ref(false)
+const loadError = ref('')
 const loading = ref(false)
 const assetObjectUrls = ref({})
 const legacyAssetFallbacks = ref({})
@@ -103,11 +105,11 @@ const statusText = (status) => String(status || 'PENDING').toUpperCase()
 const statusLabel = status => compatibilityStatusLabel(status)
 const statusType = (status) => runStatusTagType(statusText(status))
 const statusColor = (status) => ({
-  PASS: '#67C23A',
-  WARNING: '#E6A23C',
-  FAIL: '#F56C6C',
-  ERROR: '#F56C6C',
-}[statusText(status)] || '#dcdfe6')
+  PASS: chartColors.success,
+  WARNING: chartColors.warning,
+  FAIL: chartColors.danger,
+  ERROR: chartColors.danger,
+}[statusText(status)] || chartColors.border)
 const metricLabels = {
   pixel_diff_ratio: '像素差异比例',
   ssim: '结构相似度',
@@ -336,10 +338,12 @@ const fetchRun = async () => {
   const id = Number(route.params.id)
   if (!id) return
   loading.value = true
+  loadError.value = ''
   try {
     const { data } = await api.getCompatibilityRun(id)
     run.value = data
   } catch (err) {
+    loadError.value = '加载兼容性报告失败，请重试'
     ElMessage.error(err.response?.data?.detail || err.message || '加载兼容性报告失败')
   } finally {
     loading.value = false
@@ -463,6 +467,7 @@ onUnmounted(() => {
         </div>
       </div>
 
+        <el-alert v-if="loadError" :title="loadError" type="error" :closable="false"><el-button link @click="fetchRun()">重新加载</el-button></el-alert>
       <el-alert
         v-if="sourceVersionUnknown"
         title="巡检来源版本未知，本次结果仅证明当前已安装版本的历史链路可达性"
@@ -645,7 +650,7 @@ onUnmounted(() => {
       <div v-else-if="!run" class="empty-state">暂无兼容性报告详情</div>
     </div>
 
-    <el-drawer v-model="resultDrawerVisible" size="64%" :title="isInstalledReplay ? '链路回放详情' : '页面对比详情'">
+    <el-drawer v-model="resultDrawerVisible" size="min(960px, 100vw)" :title="isInstalledReplay ? '链路回放详情' : '页面对比详情'">
       <div v-if="selectedResult && isInstalledReplay" class="result-detail replay-result-detail">
         <div class="result-header">
           <div>
@@ -791,18 +796,18 @@ onUnmounted(() => {
   flex: 1;
   height: 0;
   overflow: hidden;
-  background: #f2f3f5;
+  background: var(--ad-bg);
 }
 
 .content-wrapper {
-  height: calc(100% - 20px);
-  margin: 10px;
+  height: calc(100% - 32px);
+  margin: 16px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #fff;
-  border-radius: 4px;
+  background: var(--ad-surface);
+  border-radius: var(--ad-radius);
   overflow: hidden;
 }
 
@@ -822,12 +827,12 @@ onUnmounted(() => {
 .title-block h2 {
   margin: 4px 0;
   font-size: 20px;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .title-block p {
   margin: 0;
-  color: #909399;
+  color: var(--ad-muted);
   font-size: 13px;
 }
 
@@ -835,16 +840,16 @@ onUnmounted(() => {
 .metric-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .kpi-item,
 .metric-item {
   min-height: 42px;
   padding: 7px 10px;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  background: #fafafa;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
+  background: var(--ad-bg);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -853,7 +858,7 @@ onUnmounted(() => {
 .kpi-label,
 .muted-text,
 .stage-text {
-  color: #909399;
+  color: var(--ad-muted);
   font-size: 12px;
 }
 
@@ -863,19 +868,19 @@ onUnmounted(() => {
 
 .run-name {
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .pass {
-  color: #67C23A;
+  color: var(--ad-success);
 }
 
 .warn {
-  color: #E6A23C;
+  color: var(--ad-warning);
 }
 
 .fail {
-  color: #F56C6C;
+  color: var(--ad-danger);
 }
 
 .matrix-panel {
@@ -888,7 +893,7 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .replay-stage {
@@ -901,7 +906,7 @@ onUnmounted(() => {
 .replay-stage > div {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .version-kpi {
@@ -927,21 +932,21 @@ onUnmounted(() => {
 
 .gallery-panel {
   flex-shrink: 0;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--ad-border);
   padding-top: 10px;
 }
 
 .gallery-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
 .gallery-header .card-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .gallery-page-select {
@@ -950,7 +955,7 @@ onUnmounted(() => {
 
 .gallery-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   overflow-x: auto;
   padding-bottom: 6px;
 }
@@ -958,9 +963,9 @@ onUnmounted(() => {
 .gallery-card {
   flex: 0 0 156px;
   padding: 6px;
-  border: 2px solid #dcdfe6;
+  border: 2px solid var(--ad-border);
   border-radius: 6px;
-  background: #fafafa;
+  background: var(--ad-bg);
   cursor: pointer;
 }
 
@@ -971,7 +976,7 @@ onUnmounted(() => {
   gap: 4px;
   font-size: 12px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .gallery-device {
@@ -991,7 +996,7 @@ onUnmounted(() => {
   width: 100%;
   height: 216px;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--ad-radius);
   background: #111;
 }
 
@@ -1007,7 +1012,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #909399;
+  color: var(--ad-muted);
 }
 
 .result-detail {
@@ -1030,25 +1035,25 @@ onUnmounted(() => {
   margin-bottom: 6px;
   font-size: 13px;
   font-weight: 700;
-  color: #606266;
+  color: var(--ad-muted);
 }
 
 .image-grid img {
   width: 100%;
   max-height: 520px;
   object-fit: contain;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
   background: #111;
 }
 
 .image-placeholder {
   min-height: 180px;
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--ad-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
+  background: var(--ad-bg);
 }
 
 .replay-evidence-grid {
@@ -1061,8 +1066,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
-  border: 1px solid #d9ecff;
-  background: #d9ecff;
+  border: 1px solid var(--ad-primary-soft);
+  background: var(--ad-primary-soft);
 }
 
 .boundary-evidence-grid > div {
@@ -1072,18 +1077,18 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
   gap: 5px;
-  background: #f4f9ff;
+  background: var(--ad-primary-soft);
 }
 
 .boundary-evidence-grid span,
 .technical-grid span,
 .technical-reason span {
-  color: #909399;
+  color: var(--ad-muted);
   font-size: 12px;
 }
 
 .boundary-evidence-grid strong {
-  color: #303133;
+  color: var(--ad-text);
   font-size: 13px;
 }
 
@@ -1091,30 +1096,30 @@ onUnmounted(() => {
   width: 100%;
   max-height: 520px;
   object-fit: contain;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
   background: #111;
 }
 
 .replay-xml-box {
   min-height: 120px;
   padding: 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  background: #fafafa;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
+  background: var(--ad-bg);
 }
 
 .trace-section {
   padding-top: 12px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--ad-border);
 }
 
 .technical-collapse {
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--ad-border);
 }
 
 .technical-collapse :deep(.el-collapse-item__header) {
-  color: #606266;
+  color: var(--ad-muted);
   font-size: 13px;
 }
 
@@ -1131,15 +1136,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  border: 1px solid #ebeef5;
-  background: #fafafa;
+  border: 1px solid var(--ad-border);
+  background: var(--ad-bg);
 }
 
 .technical-grid code,
 .technical-reason code {
   overflow-wrap: anywhere;
-  color: #606266;
-  font-size: 11px;
+  color: var(--ad-muted);
+  font-size: 12px;
 }
 
 .technical-reason {
@@ -1148,7 +1153,7 @@ onUnmounted(() => {
 
 .detail-section-title,
 .trace-title {
-  color: #303133;
+  color: var(--ad-text);
   font-weight: 600;
 }
 
@@ -1158,7 +1163,7 @@ onUnmounted(() => {
 
 .trace-line {
   margin-top: 5px;
-  color: #606266;
+  color: var(--ad-muted);
   font-size: 12px;
   word-break: break-all;
 }
@@ -1172,9 +1177,9 @@ onUnmounted(() => {
 .xml-summary > div {
   min-height: 48px;
   padding: 8px 10px;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  background: #fafafa;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
+  background: var(--ad-bg);
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1182,15 +1187,30 @@ onUnmounted(() => {
 
 .xml-summary strong {
   font-size: 12px;
-  color: #606266;
+  color: var(--ad-muted);
   word-break: break-all;
 }
 
 @media (max-width: 800px) {
   .compat-report-detail { overflow: auto; }
-  .content-wrapper { height: auto; min-height: calc(100% - 20px); overflow: visible; }
+  .content-wrapper { height: auto; min-height: calc(100% - 32px); overflow: visible; }
   .replay-panel { min-height: 520px; }
   .replay-stage { align-items: flex-start; flex-direction: column; }
   .replay-evidence-grid, .image-grid, .xml-summary, .boundary-evidence-grid, .technical-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
+}
+@media (max-width: 767px) {
+  .content-wrapper { margin: 8px; padding: 12px; height: calc(100% - 16px); }
+  .detail-header, .header-actions, .result-header, .replay-stage { flex-wrap: wrap; }
+  .title-block { min-width: 0; }
+  .title-block h2, .title-block p { overflow-wrap: anywhere; }
+  .kpi-item, .metric-item { min-width: 0; max-width: 100%; font-size: 14px; }
+  .version-kpi { max-width: 100%; }
 }
 </style>

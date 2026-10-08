@@ -92,7 +92,7 @@ defineExpose({ open })
     <el-dialog
         v-model="visible"
         :title="`${logEventType} 日志快照`"
-        width="80%"
+        width="min(1120px, calc(100vw - 24px))"
         top="5vh"
         destroy-on-close
     >
@@ -101,7 +101,7 @@ defineExpose({ open })
 
         <!-- AI 分析区域 -->
         <el-divider content-position="center">
-            <span style="color: #909399; font-size: 12px;">AI 智能分析</span>
+            <span style="color: var(--ad-muted); font-size: 12px;">AI 智能分析</span>
         </el-divider>
 
         <!-- 分析按钮 (未分析时显示) -->
@@ -111,11 +111,10 @@ defineExpose({ open })
                 :icon="MagicStick"
                 :loading="aiAnalyzing"
                 :loading-text="'正在分析中...'"
-                size="large"
-                round
+                size="default"
                 @click="analyzeLog"
             >
-                ✨ AI 智能根因分析
+                分析根因
             </el-button>
             <p class="ai-hint" v-if="!aiAnalyzing">点击按钮，AI 将自动提取关键日志并给出根因分析与修复建议</p>
             <p class="ai-hint analyzing" v-else>正在清洗日志并调用 AI 模型，请稍候...</p>
@@ -151,8 +150,8 @@ defineExpose({ open })
 <style scoped>
 /* ==================== 日志查看器 ==================== */
 .log-viewer {
-    background: #1e1e1e;
-    color: #d4d4d4;
+    background: var(--ad-bg);
+    color: var(--ad-text);
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
     font-size: 12px;
     line-height: 1.5;
@@ -163,5 +162,12 @@ defineExpose({ open })
     white-space: pre-wrap;
     word-break: break-all;
     margin: 0;
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

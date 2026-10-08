@@ -56,5 +56,6 @@ defineExpose({showFields:()=>{if(!error.value)mode.value='fields'}})
 .json-body :deep(textarea){font-family:monospace;line-height:1.6}
 .hint{font-size:12px;color:var(--el-text-color-secondary)}
 .json-error{margin-top:8px;font-size:12px;color:var(--el-color-danger)}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto;background:#f5f7fa;padding:12px;font-size:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:400px;overflow:auto;background:var(--ad-bg);padding:12px;font-size:12px}
+@media(max-width:760px){.hint,.json-error,pre{font-size:14px}.toolbar{flex-wrap:wrap}}
 </style>

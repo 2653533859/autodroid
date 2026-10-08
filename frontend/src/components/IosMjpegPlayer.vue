@@ -371,7 +371,7 @@ defineExpose({
   padding: 3px 10px;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.62);
-  color: #fff;
+  color: var(--ad-surface);
   font-size: 12px;
   line-height: 18px;
   z-index: 4;
@@ -401,20 +401,20 @@ defineExpose({
   max-width: calc(100% - 32px);
   padding: 8px 12px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.97);
+  background: var(--ad-surface);
   border: 1px solid rgba(245, 108, 108, 0.35);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+  box-shadow: var(--el-box-shadow-light);
   pointer-events: auto;
   z-index: 5;
 }
 
 .mjpeg-banner.warning {
-  border-color: rgba(230, 162, 60, 0.45);
+  border-color: var(--ad-warning);
 }
 
 .banner-text {
   font-size: 12px;
-  color: #303133;
+  color: var(--ad-text);
   word-break: break-all;
 }
 </style>

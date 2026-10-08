@@ -389,6 +389,7 @@ export const useCaseStore = defineStore('case', () => {
     const caseList = ref([])
     const loading = ref(false)
     const running = ref(false)
+    const saving = ref(false)
     const lastAddedStepUuid = ref(null)
     const savedSnapshot = ref(null)
 
@@ -447,6 +448,9 @@ export const useCaseStore = defineStore('case', () => {
                 variables: normalizeVariablePlaceholders(caseData.variables || []),
                 steps: uiSteps
             }
+            // StepBuilder normalizes platform/options in its Vue watcher. Wait
+            // for that initialization before declaring the loaded draft saved.
+            await nextTick()
             updateSnapshot()
             ElMessage.success('用例已加载')
         } catch (err) {
@@ -457,53 +461,51 @@ export const useCaseStore = defineStore('case', () => {
     }
 
     async function saveCase() {
+        if (saving.value) return false
+        if (!String(currentCase.value.name || '').trim()) {
+            ElMessage.warning('请输入用例名称')
+            return false
+        }
+        saving.value = true
         loading.value = true
+        const draft = JSON.parse(JSON.stringify(currentCase.value))
+        const submittedSnapshot = takeSnapshot()
         try {
-            const normalizedSteps = (currentCase.value.steps || []).map((step) => ensureCrossPlatformFields(step))
-            const normalizedVariables = normalizeVariablePlaceholders(currentCase.value.variables || [])
-            const legacySteps = normalizedSteps.map((step) => uiStepToLegacyStep(step))
-
-            const payload = {
-                ...currentCase.value,
-                variables: normalizedVariables,
-                steps: legacySteps
-            }
-
-            let res
-            if (currentCase.value.id) {
-                res = await api.updateTestCase(currentCase.value.id, payload)
-            } else {
-                res = await api.createTestCase(payload)
-            }
+            const normalizedSteps = (draft.steps || []).map(ensureCrossPlatformFields)
+            const normalizedVariables = normalizeVariablePlaceholders(draft.variables || [])
+            const payload = { ...draft, variables: normalizedVariables, steps: normalizedSteps.map(uiStepToLegacyStep) }
+            const res = draft.id
+                ? await api.updateTestCase(draft.id, payload)
+                : await api.createTestCase(payload)
             const savedCase = res.data || {}
-            const savedCaseId = savedCase.id || currentCase.value.id
-            let finalSteps = normalizedSteps
-
-            if (savedCaseId) {
-                try {
-                    const standardPayload = normalizedSteps.map((step, index) => uiStepToStandardStep(step, index + 1))
-                    const { data: savedStandardSteps } = await api.replaceCaseStandardSteps(savedCaseId, standardPayload)
-                    if (Array.isArray(savedStandardSteps) && savedStandardSteps.length > 0) {
-                        finalSteps = savedStandardSteps.map((step) => standardStepToUiStep(step))
-                    }
-                } catch (stepErr) {
-                    console.error('保存标准步骤失败', stepErr)
-                    ElMessage.warning('标准步骤保存失败，当前仅保存了兼容步骤。')
-                }
+            const savedCaseId = savedCase.id || draft.id
+            if (!savedCaseId) throw new Error('服务未返回用例 ID')
+            // Keep the new identity even if the second save fails, so retry updates
+            // this case instead of creating a duplicate and preserves the draft.
+            currentCase.value.id = savedCaseId
+            const standardPayload = normalizedSteps.map((step, index) => uiStepToStandardStep(step, index + 1))
+            const { data: savedStandardSteps } = await api.replaceCaseStandardSteps(savedCaseId, standardPayload)
+            const finalSteps = Array.isArray(savedStandardSteps)
+                ? savedStandardSteps.map(standardStepToUiStep)
+                : normalizedSteps
+            const savedValue = { ...draft, ...savedCase, id: savedCaseId, variables: normalizedVariables, steps: finalSteps }
+            if (takeSnapshot() === submittedSnapshot) {
+                currentCase.value = savedValue
+                await nextTick()
+                updateSnapshot()
+            } else {
+                // A late edit is still a draft; do not mark it saved or overwrite it.
+                savedSnapshot.value = JSON.stringify({ name: savedValue.name, steps: savedValue.steps, variables: savedValue.variables })
             }
-
-            currentCase.value = {
-                ...savedCase,
-                steps: finalSteps
-            }
-            // 延迟到 nextTick 拍快照，避免 StepBuilder 的 deep watcher
-            // 在 Vue 调度刷新时突变 steps 导致快照与实际状态不一致
-            nextTick(() => updateSnapshot())
             ElMessage.success('保存成功')
             await fetchCaseList()
+            return true
         } catch (err) {
-            ElMessage.error('保存失败: ' + err.message)
+            savedSnapshot.value = '__incomplete_save__'
+            ElMessage.error('保存未完成，草稿已保留，请重试: ' + err.message)
+            return false
         } finally {
+            saving.value = false
             loading.value = false
         }
     }
@@ -564,6 +566,7 @@ export const useCaseStore = defineStore('case', () => {
         caseList,
         loading,
         running,
+        saving,
         lastAddedStepUuid,
         // Getters
         hasUnsavedChanges,

@@ -72,7 +72,7 @@ defineExpose({ open })
     <el-dialog
         v-model="visible"
         title="Perfetto Trace AI 总结"
-        width="70%"
+        width="min(960px, calc(100vw - 24px))"
         top="8vh"
         destroy-on-close
     >
@@ -80,8 +80,7 @@ defineExpose({ open })
             <el-button
                 type="primary"
                 :icon="MagicStick"
-                size="large"
-                round
+                size="default"
                 @click="open(currentTraceArtifact)"
             >
                 ✨ 生成 AI 总结
@@ -94,8 +93,7 @@ defineExpose({ open })
                 :icon="MagicStick"
                 :loading="true"
                 :loading-text="'正在分析中...'"
-                size="large"
-                round
+                size="default"
             >
                 ✨ 正在生成 AI 总结
             </el-button>

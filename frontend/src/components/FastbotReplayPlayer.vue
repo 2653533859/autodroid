@@ -130,14 +130,29 @@ onUnmounted(() => {
 .replay-video {
     width: 100%;
     max-height: 68vh;
-    border-radius: 8px;
+    border-radius: var(--ad-panel-radius);
     background: #000;
     outline: none;
 }
 
 .replay-hint {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     text-align: center;
 }
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  [class*="mobile-"] { font-size: 14px; }
+  [class*="mobile-"] strong, [class*="mobile-"] span, [class*="mobile-"] small { font-size: inherit; }
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
+}
+@media (max-width: 767px) { .replay-hint { font-size: 14px; } }
 </style>

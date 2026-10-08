@@ -1,8 +1,8 @@
 <script setup>
-import { computed, ref, reactive, onMounted, watch } from 'vue'
+import { computed, ref, reactive, onMounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Delete, Search, Refresh, Edit } from '@element-plus/icons-vue'
+import { Plus, Delete, MoreFilled, Search, Refresh, Edit } from '@element-plus/icons-vue'
 import api from '@/api'
 import dayjs from 'dayjs'
 import { useRemoteSearch } from '@/composables/useRemoteSearch'
@@ -311,24 +311,37 @@ const buildPayload = () => {
     return payload
 }
 
+const taskFormElement = ref(null)
+const revealTaskError = async (message, label) => {
+    await nextTick()
+    const fields = [...(taskFormElement.value?.querySelectorAll('.el-form-item') || [])]
+    const field = fields.find(item => item.querySelector('.el-form-item__label')?.textContent.includes(label))
+    field?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    field?.querySelector('input, textarea, button')?.focus({ preventScroll: true })
+    ElMessage.warning(message)
+}
+const saving = ref(false)
+const togglingIds = ref(new Set())
 const handleSubmit = async () => {
-    if (form.task_type === 'api' && !form.api_scenario_id) return ElMessage.warning('请选择接口场景')
-    if (!form.name) return ElMessage.warning('请输入任务名称')
-    if (form.task_type === 'ui' && !form.scenario_id) return ElMessage.warning('请选择执行场景')
-    if (form.task_type === 'ui' && (!form.device_serials || form.device_serials.length === 0)) return ElMessage.warning('UI 任务必须选择执行设备')
-    if (form.task_type === 'fastbot' && !form.fb_package_name) return ElMessage.warning('请输入目标包名')
-    if (form.task_type === 'fastbot' && (!form.device_serials || form.device_serials.length === 0)) return ElMessage.warning('智能探索任务必须选择执行设备')
-    if (form.task_type === 'inspection' && !form.inspection_profile_id) return ElMessage.warning('请选择巡检配置')
-    if (form.task_type === 'inspection' && form.inspection_branches.length === 0) return ElMessage.warning('至少选择一条巡检业务线')
-    if (form.task_type === 'inspection' && form.device_serials.length !== 1) return ElMessage.warning('巡检定时任务必须显式选择 1 台 Android 设备')
+    if (saving.value) return
+    if (form.task_type === 'api' && !form.api_scenario_id) return revealTaskError('请选择接口场景', '接口场景')
+    if (!form.name) return revealTaskError('请输入任务名称', '任务名称')
+    if (form.task_type === 'ui' && !form.scenario_id) return revealTaskError('请选择执行场景', '执行场景')
+    if (form.task_type === 'ui' && (!form.device_serials || form.device_serials.length === 0)) return revealTaskError('UI 任务必须选择执行设备', '执行设备')
+    if (form.task_type === 'fastbot' && !form.fb_package_name) return revealTaskError('请输入目标包名', '目标包名')
+    if (form.task_type === 'fastbot' && (!form.device_serials || form.device_serials.length === 0)) return revealTaskError('智能探索任务必须选择执行设备', '执行设备')
+    if (form.task_type === 'inspection' && !form.inspection_profile_id) return revealTaskError('请选择巡检配置', '巡检配置')
+    if (form.task_type === 'inspection' && form.inspection_branches.length === 0) return revealTaskError('至少选择一条巡检业务线', '业务线')
+    if (form.task_type === 'inspection' && form.device_serials.length !== 1) return revealTaskError('巡检定时任务必须显式选择 1 台 Android 设备', '执行设备')
     if (form.strategy === 'WEEKLY' && form.weekly_days.length === 0) {
-        return ElMessage.warning('请至少选择一天')
+        return revealTaskError('请至少选择一天', '选择星期')
     }
     if (form.strategy === 'ONCE' && !form.once_datetime) {
-        return ElMessage.warning('请选择执行日期时间')
+        return revealTaskError('请选择执行日期时间', '执行时间')
     }
 
     const payload = buildPayload()
+    saving.value = true
     try {
         if (editingId.value) {
             await api.updateTask(editingId.value, payload)
@@ -341,15 +354,21 @@ const handleSubmit = async () => {
         fetchTasks()
     } catch (err) {
         ElMessage.error('操作失败: ' + (err.response?.data?.detail || err.message))
+    } finally {
+        saving.value = false
     }
 }
 
 const handleToggle = async (row) => {
+    if (togglingIds.value.has(row.id)) return
+    togglingIds.value.add(row.id)
     try {
         await api.toggleTask(row.id)
         fetchTasks()
     } catch (err) {
         ElMessage.error('切换失败')
+    } finally {
+        togglingIds.value.delete(row.id)
     }
 }
 
@@ -409,9 +428,9 @@ watch(() => taskRoute.fullPath, () => {
 </script>
 
 <template>
-    <div class="task-list-container">
+    <div class="task-list-container ad-page">
         <div class="content-wrapper">
-            <div class="toolbar">
+            <div class="toolbar ad-toolbar">
                 <div class="left-tools">
                     <el-input
                         v-model="searchQuery"
@@ -435,12 +454,11 @@ watch(() => taskRoute.fullPath, () => {
                     v-loading="loading"
                     style="width: 100%"
                     height="100%"
-                    :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
                 >
                 <el-table-column label="任务" min-width="180">
                     <template #default="{ row }">
                         <div class="task-cell">
-                            <span class="task-name" @click="handleEdit(row)">{{ row.name }}</span>
+                            <button type="button" class="task-name ad-name-button" @click="handleEdit(row)">{{ row.name }}</button>
                             <span class="task-device-count">{{ row.strategy_config?._task_type === 'api' ? '无需设备' : `${row.device_serials?.length || 0} 台设备` }}</span>
                         </div>
                     </template>
@@ -476,6 +494,8 @@ watch(() => taskRoute.fullPath, () => {
                     <template #default="{ row }">
                         <el-switch
                             :model-value="row.is_active"
+                            :loading="togglingIds.has(row.id)"
+                            :aria-label="`${row.name} 启用状态`"
                             @change="handleToggle(row)"
                             size="small"
                         />
@@ -484,12 +504,11 @@ watch(() => taskRoute.fullPath, () => {
 
                 <el-table-column label="操作" width="120" align="center" fixed="right">
                     <template #default="{ row }">
-                        <el-tooltip content="编辑" placement="top">
-                            <el-button :icon="Edit" link type="primary" @click="handleEdit(row)" />
-                        </el-tooltip>
-                        <el-tooltip content="删除" placement="top">
-                            <el-button :icon="Delete" link type="danger" @click="handleDelete(row)" />
-                        </el-tooltip>
+                        <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
+                        <el-dropdown trigger="click" @command="handleDelete(row)">
+                            <el-button :icon="MoreFilled" link aria-label="更多任务操作" />
+                            <template #dropdown><el-dropdown-menu><el-dropdown-item command="delete">删除任务</el-dropdown-item></el-dropdown-menu></template>
+                        </el-dropdown>
                     </template>
                 </el-table-column>
                 </el-table>
@@ -513,13 +532,14 @@ watch(() => taskRoute.fullPath, () => {
         <el-dialog
             v-model="dialogVisible"
             :title="dialogTitle"
-            width="560px"
+            width="min(560px, calc(100vw - 24px))"
             class="task-editor-dialog"
             destroy-on-close
             align-center
         >
-            <div class="task-dialog-scroll">
-            <el-form label-width="90px" class="task-form">
+            <div ref="taskFormElement" class="task-dialog-scroll">
+            <el-form label-width="90px" class="task-form" :disabled="saving">
+                <h3 class="form-group-title">执行内容</h3>
                 <el-form-item label="任务名称">
                     <el-input v-model="form.name" placeholder="例如：每日回归测试" />
                 </el-form-item>
@@ -659,6 +679,7 @@ watch(() => taskRoute.fullPath, () => {
                     </el-select>
                 </el-form-item>
 
+                <h3 class="form-group-title">触发与通知</h3>
                 <el-form-item label="执行策略">
                     <el-select v-model="form.strategy" style="width: 100%">
                         <el-option label="单次" value="ONCE" />
@@ -707,7 +728,7 @@ watch(() => taskRoute.fullPath, () => {
 
                 <!-- INTERVAL -->
                 <el-form-item v-if="form.strategy === 'INTERVAL'" label="执行间隔">
-                    <div style="display: flex; gap: 10px; width: 100%">
+                    <div style="display: flex; gap: 8px; width: 100%">
                         <el-input-number v-model="form.interval_value" :min="1" :max="1440" style="flex: 1" />
                         <el-select v-model="form.interval_unit" style="width: 100px">
                             <el-option label="分钟" value="minutes" />
@@ -741,26 +762,29 @@ watch(() => taskRoute.fullPath, () => {
 
             <template #footer>
                 <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="handleSubmit">确定</el-button>
+                <el-button type="primary" :loading="saving" @click="handleSubmit">保存任务</el-button>
             </template>
         </el-dialog>
     </div>
 </template>
 
 <style scoped>
+.form-group-title { margin: 4px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--ad-border); font-size: 13px; font-weight: 600; color: var(--ad-text); }
+.task-list-container :deep(.el-table__cell) { padding: 6px 0; font-size: 12px; }
+
 .task-list-container {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f2f3f5;
+    background: var(--ad-bg);
 }
 
 .content-wrapper {
     flex: 1;
-    padding: 20px;
-    background: #fff;
-    margin: 10px;
-    border-radius: 4px;
+    padding: 16px;
+    background: var(--ad-surface);
+    margin: 16px;
+    border-radius: var(--ad-radius);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -776,15 +800,15 @@ watch(() => taskRoute.fullPath, () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 12px;
 }
 
 .left-tools, .right-tools {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .search-input {
@@ -793,7 +817,7 @@ watch(() => taskRoute.fullPath, () => {
 
 .task-name {
     font-weight: 500;
-    color: #409eff;
+    color: var(--ad-primary);
     cursor: pointer;
 }
 .task-name:hover {
@@ -808,7 +832,7 @@ watch(() => taskRoute.fullPath, () => {
 }
 
 .task-device-count, .execution-copy span {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
 }
 
@@ -816,7 +840,7 @@ watch(() => taskRoute.fullPath, () => {
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .execution-cell :deep(.el-tag) {
@@ -830,17 +854,17 @@ watch(() => taskRoute.fullPath, () => {
 }
 
 .execution-copy strong {
-    color: #303133;
+    color: var(--ad-text);
     font-size: 13px;
     font-weight: 600;
 }
 
 .schedule-text {
     font-size: 13px;
-    color: #303133;
+    color: var(--ad-text);
 }
 
-.text-gray { color: #909399; }
+.text-gray { color: var(--ad-muted); }
 
 .pagination-footer {
     flex-shrink: 0;
@@ -861,7 +885,7 @@ watch(() => taskRoute.fullPath, () => {
 }
 
 .unit-label {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 13px;
 }
 
@@ -894,8 +918,8 @@ watch(() => taskRoute.fullPath, () => {
     z-index: 1;
     bottom: 0;
     padding-top: 12px;
-    border-top: 1px solid #ebeef5;
-    background: #fff;
+    border-top: 1px solid var(--ad-border);
+    background: var(--ad-surface);
 }
 
 @media (max-width: 760px) {
@@ -911,5 +935,12 @@ watch(() => taskRoute.fullPath, () => {
     :global(.task-editor-dialog) { max-height: calc(100dvh - 12px); }
     :global(.task-editor-dialog .el-dialog__header) { padding-top: 12px; padding-bottom: 10px; }
     :global(.task-editor-dialog .el-dialog__footer) { padding-top: 8px; padding-bottom: 8px; }
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

@@ -44,7 +44,7 @@ function changeBody(type) {
 </script>
 <template>
   <div ref="root" class="request-editor">
-    <el-form label-position="top" class="request-address">
+    <el-form label-position="top" class="request-address" scroll-to-error>
       <el-form-item label="请求方法"><el-select :model-value="req.method" @update:model-value="setRequest('method', $event)"><el-option v-for="m in ['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS']" :key="m" :value="m" /></el-select></el-form-item>
       <el-form-item label="请求地址"><ValueEditor :model-value="req.url" :location="['request','url']" :sources="sources" :variables="variables" text-only @update:model-value="setRequest('url', $event)" /></el-form-item>
       <div v-if="$slots.actions" class="request-actions"><slot name="actions" /></div>
@@ -71,13 +71,14 @@ function changeBody(type) {
   </div>
 </template>
 <style scoped>
-.request-editor{min-width:0}.request-address{display:grid;grid-template-columns:100px minmax(0,1fr) auto;gap:10px;align-items:end}
+.request-editor{min-width:0}.request-address{display:grid;grid-template-columns:100px minmax(0,1fr) auto;gap:8px;align-items:end}
 .request-actions{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}.request-actions :deep(.el-button+.el-button){margin-left:0}
 .main-tabs :deep(>.el-tabs__header){margin-bottom:10px}.main-tabs :deep(>.el-tabs__header .el-tabs__item){font-weight:600}
 .request-address :deep(.el-form-item){margin-bottom:12px;min-width:0}.request-address :deep(.el-form-item__content){display:block;min-width:0}
 .request-address :deep(.el-select){width:100%}.request-address :deep(.el-form-item__label){line-height:22px;padding-bottom:8px}
 .url-row{display:flex;gap:12px;align-items:flex-start}.body-content{margin-top:16px}
-h4{font-size:13px;margin:16px 0 12px}label{display:block;color:#606266;font-size:13px;margin:12px 0 8px}
-.hint{color:#909399;font-size:12px;line-height:20px}
+h4{font-size:13px;margin:16px 0 12px}label{display:block;color:var(--ad-text);font-size:13px;margin:12px 0 8px}
+.hint{color:var(--ad-muted);font-size:12px;line-height:20px}
 @media(max-width:1100px){.request-address{grid-template-columns:90px minmax(0,1fr)}.request-actions{grid-column:1/-1;margin-top:-4px}}
+@media(max-width:760px){.hint,h4,label{font-size:14px}.request-address{grid-template-columns:110px minmax(0,1fr)}.request-actions{grid-column:1/-1;justify-content:flex-end}.url-row{flex-wrap:wrap}.main-tabs :deep(.el-tabs__item){font-size:14px}}
 </style>

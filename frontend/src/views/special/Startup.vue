@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { VideoPlay, Refresh, View } from '@element-plus/icons-vue'
@@ -35,6 +35,17 @@ const tasksPage = ref(1)
 const tasksPageSize = ref(20)
 const tasksTotal = ref(0)
 const submitting = ref(false)
+const startupFormElement = ref(null)
+const advancedOptions = ref(null)
+const revealStartupError = async (message, label, advanced = false) => {
+    if (advanced && advancedOptions.value) advancedOptions.value.open = true
+    await nextTick()
+    const fields = [...(startupFormElement.value?.querySelectorAll('.el-form-item') || [])]
+    const field = fields.find(item => item.querySelector('.el-form-item__label')?.textContent.includes(label))
+    field?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    field?.querySelector('input, textarea, button')?.focus({ preventScroll: true })
+    ElMessage.warning(message)
+}
 let pollTimer = null
 let pageActive = false
 
@@ -120,20 +131,21 @@ const buildPayload = () => ({
 })
 
 const submit = async () => {
+    if (submitting.value) return
     if (!form.package_name.trim()) {
-        ElMessage.warning('请输入目标包名')
+        revealStartupError('请输入目标包名', '目标包名')
         return
     }
     if (startupModes.value.length === 0) {
-        ElMessage.warning('请至少选择一种启动模式')
+        revealStartupError('请至少选择一种启动模式', '启动模式')
         return
     }
     if (selectedDevices.value.length === 0) {
-        ElMessage.warning('请至少选择一台设备')
+        revealStartupError('请至少选择一台设备', '测试设备')
         return
     }
     if (form.ready_enabled && !form.locator_value.trim()) {
-        ElMessage.warning('开启首页就绪检查时需要填写 locator')
+        revealStartupError('开启首页就绪检查时需要填写 locator', '首页就绪检查', true)
         return
     }
 
@@ -238,7 +250,7 @@ onUnmounted(() => {
                     </div>
                 </template>
 
-                <el-form label-width="110px" label-position="left">
+                <div ref="startupFormElement"><el-form label-width="110px" label-position="left" :disabled="submitting">
                     <div class="form-grid">
                         <el-form-item label="目标包名">
                             <el-input v-model="form.package_name" placeholder="com.example.app" clearable />
@@ -289,7 +301,7 @@ onUnmounted(() => {
                         </el-form-item>
                     </div>
 
-                    <div class="options-block">
+                    <details ref="advancedOptions" class="options-block"><summary>高级配置 · 慢启动取证、就绪检查与日志</summary>
                         <el-form-item label="慢启动取证">
                             <div class="inline-controls threshold-row">
                                 <el-switch v-model="form.perfetto_enabled" />
@@ -325,8 +337,8 @@ onUnmounted(() => {
                         <el-form-item label="抓取日志">
                             <el-switch v-model="form.capture_log" />
                         </el-form-item>
-                    </div>
-                </el-form>
+                    </details>
+                </el-form></div>
             </el-card>
 
             <el-card shadow="never" class="tasks-card">
@@ -340,7 +352,6 @@ onUnmounted(() => {
                 <el-table
                     :data="tasks"
                     v-loading="tasksLoading"
-                    :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
                     height="100%"
                 >
                     <el-table-column prop="id" label="ID" width="70" align="center" />
@@ -408,16 +419,18 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.options-block summary { padding: 0 0 12px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--ad-text); }
+
 .startup-page {
     flex: 1;
     height: 0;
     overflow: hidden;
-    background: #f2f3f5;
+    background: var(--ad-bg);
 }
 
 .content-wrapper {
-    height: calc(100% - 20px);
-    margin: 10px;
+    height: calc(100% - 32px);
+    margin: 16px;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -425,7 +438,7 @@ onUnmounted(() => {
 
 .config-card,
 .tasks-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .tasks-card {
@@ -470,13 +483,13 @@ onUnmounted(() => {
 .card-title {
     font-size: 15px;
     font-weight: 700;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 0 20px;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: 0 16px;
 }
 
 .wide-control {
@@ -486,7 +499,7 @@ onUnmounted(() => {
 
 .options-block {
     padding-top: 8px;
-    border-top: 1px solid #ebeef5;
+    border-top: 1px solid var(--ad-border);
 }
 
 .threshold-row {
@@ -507,7 +520,7 @@ onUnmounted(() => {
 .unit-text,
 .device-serial,
 .muted-text {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
 }
 
@@ -517,11 +530,18 @@ onUnmounted(() => {
 
 .pkg-name {
     font-family: Menlo, Monaco, Consolas, monospace;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .danger-text {
-    color: #F56C6C;
+    color: var(--ad-danger);
     font-weight: 700;
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

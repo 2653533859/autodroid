@@ -37,7 +37,6 @@ defineEmits(['open-trace-ai', 'generate-summaries'])
         <el-table
             v-if="traceArtifacts.length > 0"
             :data="traceArtifacts"
-            :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
         >
             <el-table-column type="expand">
                 <template #default="{ row }">
@@ -78,7 +77,7 @@ defineEmits(['open-trace-ai', 'generate-summaries'])
 
 <style scoped>
 .events-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .trace-header {
@@ -93,8 +92,15 @@ defineEmits(['open-trace-ai', 'generate-summaries'])
 }
 
 .card-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

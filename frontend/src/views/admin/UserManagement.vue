@@ -145,8 +145,8 @@ onMounted(loadData)
 </script>
 
 <template>
-  <div class="admin-page" v-loading="loading">
-    <div class="page-header">
+  <div class="admin-page ad-page" v-loading="loading">
+    <div class="page-header ad-page-header">
       <h2>用户管理</h2>
       <div class="header-actions">
         <el-button :icon="Refresh" @click="loadData">刷新</el-button>
@@ -170,8 +170,8 @@ onMounted(loadData)
       </div>
     </section>
 
-    <section class="table-panel">
-      <div class="table-toolbar">
+    <section class="table-panel ad-surface">
+      <div class="table-toolbar ad-toolbar">
         <el-input
           v-model="searchKeyword"
           placeholder="搜索用户名或姓名"
@@ -184,7 +184,7 @@ onMounted(loadData)
         <el-button :icon="Search" @click="loadUsers">搜索</el-button>
       </div>
 
-      <el-table :data="users" row-key="id" height="100%" class="user-table">
+      <el-table :data="users" row-key="id" height="100%" class="user-table ad-table">
         <el-table-column label="用户名" prop="username" min-width="160">
           <template #default="{ row }">
             <div class="user-cell">
@@ -193,10 +193,10 @@ onMounted(loadData)
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="姓名" prop="full_name" min-width="150">
+        <el-table-column label="姓名" prop="full_name" min-width="120">
           <template #default="{ row }">{{ row.full_name || '-' }}</template>
         </el-table-column>
-        <el-table-column label="邮箱" prop="email" min-width="220">
+        <el-table-column label="邮箱" prop="email" min-width="120">
           <template #default="{ row }">{{ row.email || '-' }}</template>
         </el-table-column>
         <el-table-column label="状态" width="110">
@@ -206,7 +206,7 @@ onMounted(loadData)
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="创建时间" width="170">
+        <el-table-column label="创建时间" width="155">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="120" fixed="right">
@@ -224,13 +224,13 @@ onMounted(loadData)
       </el-table>
     </section>
 
-    <el-dialog
+    <el-dialog class="ad-dialog"
       v-model="createDialogVisible"
       title="新增用户"
-      width="460px"
+      width="min(460px, calc(100vw - 32px))"
       @closed="resetCreateForm"
     >
-      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-position="top">
+      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-position="top" scroll-to-error>
         <el-form-item label="用户名" prop="username">
           <el-input v-model="createForm.username" :prefix-icon="User" autocomplete="off" />
         </el-form-item>
@@ -264,8 +264,8 @@ onMounted(loadData)
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 24px;
-  background: #f2f3f5;
+  padding: 16px;
+  background: var(--ad-bg);
 }
 
 .page-header {
@@ -278,9 +278,9 @@ onMounted(loadData)
 
 .page-header h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
-  color: #1f2933;
+  color: var(--ad-text);
 }
 
 .header-actions {
@@ -290,14 +290,14 @@ onMounted(loadData)
 
 .settings-panel,
 .table-panel {
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-panel-radius);
+  background: var(--ad-surface);
 }
 
 .settings-panel {
   margin-bottom: 16px;
-  padding: 18px 20px;
+  padding: 12px 16px;
 }
 
 .setting-row {
@@ -308,15 +308,15 @@ onMounted(loadData)
 }
 
 .setting-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  color: #1f2933;
+  color: var(--ad-text);
 }
 
 .setting-value {
   margin-top: 4px;
   font-size: 13px;
-  color: #606266;
+  color: var(--ad-text);
 }
 
 .table-panel {
@@ -367,4 +367,5 @@ onMounted(loadData)
     width: 100%;
   }
 }
+@media(max-width:760px){.header-actions{flex-wrap:wrap}.page-header h2{font-size:20px}.page-desc,.setting-value,.setting-title,.token-prefix,.token-plaintext{font-size:14px}.token-display{align-items:stretch;flex-direction:column}.table-panel{overflow:auto;flex-shrink:0;min-height:260px}.tokens-page,.admin-page{overflow:auto}.password-panel{padding:16px}.user-cell{flex-wrap:wrap}}
 </style>

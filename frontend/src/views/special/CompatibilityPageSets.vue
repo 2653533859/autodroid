@@ -129,6 +129,7 @@ const buildPayload = () => ({
 })
 
 const savePageSet = async () => {
+  if (loading.saving) return
   if (!form.name.trim()) return ElMessage.warning('请输入合集名称')
   if (!form.pages.length) return ElMessage.warning('至少添加一个页面')
   for (const page of form.pages) {
@@ -275,23 +276,23 @@ onActivated(refreshAll)
   flex: 1;
   height: 0;
   overflow: hidden;
-  background: #f2f3f5;
+  background: var(--ad-bg);
 }
 
 .content-wrapper {
-  height: calc(100% - 20px);
-  margin: 10px;
+  height: calc(100% - 32px);
+  margin: 16px;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: 208px minmax(0, 1fr);
   gap: 12px;
 }
 
 .sets-panel,
 .editor-panel {
   min-height: 0;
-  background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
+  background: var(--ad-surface);
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-radius);
 }
 
 .sets-panel {
@@ -321,7 +322,7 @@ onActivated(refreshAll)
 
 .sets-panel .panel-header {
   padding: 14px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--ad-border);
 }
 
 .sets-list {
@@ -336,7 +337,7 @@ onActivated(refreshAll)
   min-height: 54px;
   padding: 9px 10px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--ad-radius);
   background: transparent;
   text-align: left;
   display: flex;
@@ -347,27 +348,27 @@ onActivated(refreshAll)
 }
 
 .set-item:hover {
-  background: #f5f7fa;
+  background: var(--ad-bg);
 }
 
 .set-item.active {
-  border-color: #409eff;
-  background: #ecf5ff;
+  border-color: var(--ad-primary);
+  background: var(--ad-primary-soft);
 }
 
 .set-name {
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .card-title {
   font-size: 15px;
   font-weight: 700;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .muted-text {
-  color: #909399;
+  color: var(--ad-muted);
   font-size: 12px;
 }
 
@@ -377,8 +378,8 @@ onActivated(refreshAll)
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 0 20px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 0 16px;
 }
 
 .pages-table {
@@ -400,5 +401,12 @@ onActivated(refreshAll)
   .sets-panel {
     min-height: 220px;
   }
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

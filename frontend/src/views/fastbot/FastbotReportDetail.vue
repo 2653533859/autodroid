@@ -37,6 +37,7 @@ const taskId = Number(route.params.id)
 const chartGroup = `fastbot-report-${taskId}`
 const task = ref(null)
 const report = ref(null)
+const loadError = ref('')
 const loading = ref(true)
 
 const batchTraceAiLoading = ref(false)
@@ -55,7 +56,8 @@ const bindCharts = async () => {
 
 const fetchData = async () => {
     loading.value = true
-    try {
+    loadError.value = ''
+  try {
         const [taskRes, reportRes, deviceRes] = await Promise.all([
             api.getFastbotTask(taskId),
             api.getFastbotReport(taskId),
@@ -72,6 +74,7 @@ const fetchData = async () => {
         }
         devicesMap.value = map
     } catch (err) {
+    loadError.value = '获取报告数据失败，请重试'
         ElMessage.error('获取报告数据失败')
     } finally {
         loading.value = false
@@ -296,6 +299,7 @@ watch(
             </span>
         </div>
 
+        <el-alert v-if="loadError" :title="loadError" type="error" :closable="false"><el-button link @click="fetchData()">重新加载</el-button></el-alert>
         <div class="detail-body" v-if="task && report">
             <StartupReportSection
                 v-if="isStartupSession"
@@ -320,7 +324,7 @@ watch(
                         <div class="verdict-title">诊断结论</div>
                         <div class="verdict-subtitle">先看这里，再决定是否进入 Trace 明细排查。</div>
                     </div>
-                    <el-tag :type="verdictTagType" effect="dark" size="large">
+                    <el-tag :type="verdictTagType" effect="dark" size="default">
                         流畅度评级：{{ verdict.label || '-' }}
                     </el-tag>
                 </div>
@@ -422,6 +426,16 @@ watch(
                 </div>
             </el-card>
 
+            <!-- 异常事件列表 -->
+            <CrashEventsCard
+                v-if="crashEvents.length > 0"
+                :crash-events="crashEvents"
+                :local-replay-enabled="localReplayEnabled"
+                @view-log="openLogDialog"
+                @view-replay="openReplayDialog"
+            />
+
+
             <!-- 性能折线图 -->
             <PerformanceChartCard
                 v-if="performanceMonitorEnabled"
@@ -440,15 +454,6 @@ watch(
                 :started-at="task.started_at || ''"
                 :chart-group="chartGroup"
                 @point-click="handleJankChartPointClick"
-            />
-
-            <!-- 异常事件列表 -->
-            <CrashEventsCard
-                v-if="crashEvents.length > 0"
-                :crash-events="crashEvents"
-                :local-replay-enabled="localReplayEnabled"
-                @view-log="openLogDialog"
-                @view-replay="openReplayDialog"
             />
 
             <JankEventsCard
@@ -507,7 +512,7 @@ watch(
 <style scoped>
 .report-detail-container {
     height: 100%;
-    background: #f2f3f5;
+    background: var(--ad-bg);
     overflow-y: auto;
     overflow-x: hidden;
 }
@@ -517,17 +522,17 @@ watch(
     align-items: center;
     gap: 16px;
     padding: 12px 20px;
-    background: #fff;
-    border-bottom: 1px solid #ebeef5;
+    background: var(--ad-surface);
+    border-bottom: 1px solid var(--ad-border);
     position: sticky;
     top: 0;
     z-index: 10;
 }
 
 .title {
-    font-size: 15px;
+    font-size: 20px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .detail-body {
@@ -538,8 +543,8 @@ watch(
 }
 
 .verdict-card {
-    border: 1px solid #d9ecff;
-    background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+    border: 1px solid var(--ad-border);
+    background: var(--ad-surface);
 }
 
 .verdict-header {
@@ -552,13 +557,13 @@ watch(
 .verdict-title {
     font-size: 16px;
     font-weight: 700;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .verdict-subtitle {
     margin-top: 4px;
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
 }
 
 .verdict-grid {
@@ -570,31 +575,31 @@ watch(
 
 .verdict-item {
     padding: 12px 14px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.9);
-    border: 1px solid #e4ecf5;
+    border-radius: var(--ad-panel-radius);
+    background: var(--ad-bg);
+    border: 1px solid var(--ad-border);
 }
 
 .verdict-label {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     margin-bottom: 6px;
 }
 
 .verdict-text {
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.6;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .summary-cards {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
 }
 
 .events-card, .info-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .trace-header {
@@ -605,7 +610,7 @@ watch(
 }
 
 .trace-hint {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
 }
 
@@ -616,10 +621,10 @@ watch(
 }
 
 .marker-segment-card {
-    border: 1px solid #ebeef5;
-    border-radius: 8px;
+    border: 1px solid var(--ad-border);
+    border-radius: var(--ad-panel-radius);
     padding: 14px;
-    background: #fafafa;
+    background: var(--ad-bg);
 }
 
 .marker-segment-top {
@@ -631,20 +636,20 @@ watch(
 }
 
 .marker-segment-duration {
-    color: #606266;
+    color: var(--ad-muted);
     font-size: 12px;
     font-weight: 600;
 }
 
 .marker-segment-time {
-    color: #303133;
+    color: var(--ad-text);
     font-size: 13px;
     font-weight: 600;
 }
 
 .marker-segment-activity {
     margin-top: 8px;
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
     word-break: break-all;
 }
@@ -657,14 +662,21 @@ watch(
 }
 
 .card-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .trace-insight-hint {
     font-size: 12px;
-    color: #606266;
+    color: var(--ad-muted);
     padding: 0 4px;
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

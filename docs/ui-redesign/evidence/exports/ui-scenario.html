@@ -1,0 +1,545 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>场景测试报告 - 会员中心 · 登录状态与个人资料修改回归 / 长标题验证示例（隔离数据）</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f7f9fb;
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: none;
+            border: 1px solid #e5e9ee;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background: #fff;
+            color: #202731;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e5e9ee;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .header .meta {
+            color: #677381;
+            font-size: 13px;
+        }
+
+        /* Summary Cards */
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            padding: 20px 24px;
+            background: #f7f9fb;
+        }
+
+        .stat-card {
+            background: #fff;
+            border-radius: 8px;
+            border: 1px solid #e5e9ee;
+            padding: 16px;
+            text-align: center;
+            box-shadow: none;
+        }
+
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .stat-card .label {
+            color: #677381;
+            font-size: 13px;
+        }
+
+        .stat-card.success .value {
+            color: #39725a;
+        }
+
+        .stat-card.failed .value {
+            color: #ad4f4a;
+        }
+
+        .stat-card.total .value {
+            color: #466b98;
+        }
+
+        .stat-card.duration .value {
+            color: #936323;
+        }
+
+        /* Progress Bar */
+        .progress-section {
+            padding: 0 24px 16px;
+            background: #f7f9fb;
+        }
+
+        .progress-bar {
+            height: 10px;
+            background: #e5e9ee;
+            border-radius: 5px;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .progress-passed {
+            background: #39725a;
+            transition: width 0.5s ease;
+        }
+
+        .progress-failed {
+            background: #ad4f4a;
+            transition: width 0.5s ease;
+        }
+
+        /* Cases Section */
+        .cases-section {
+            padding: 20px 24px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #202731;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: #466b98;
+            border-radius: 2px;
+        }
+
+        .case-item {
+            background: #fff;
+            border: 1px solid #e5e9ee;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .case-item:hover {
+            box-shadow: none;
+            border-color: #e5e9ee;
+            transform: translateY(-1px);
+        }
+
+        .case-header {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            gap: 15px;
+            background: #f7f9fb;
+            cursor: pointer;
+            border-bottom: 1px solid transparent;
+        }
+
+        .case-header:hover {
+            background: #f5f7fa;
+        }
+
+        .case-item.expanded .case-header {
+            border-bottom: 1px solid #e5e9ee;
+        }
+
+        .case-index {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #e5e9ee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: #677381;
+            flex-shrink: 0;
+        }
+
+        .case-item.expanded .case-index {
+            background: #466b98;
+            color: #fff;
+        }
+
+        .case-info {
+            flex: 1;
+        }
+
+        .case-title {
+            font-weight: 500;
+            color: #202731;
+            font-size: 15px;
+            margin-bottom: 2px;
+        }
+
+        .case-meta {
+            font-size: 12px;
+            color: #677381;
+        }
+
+        .case-status {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .case-status.success {
+            color: #39725a;
+        }
+
+        .case-status.failed {
+            color: #ad4f4a;
+        }
+
+        .case-status.warning {
+            color: #936323;
+        }
+
+        /* Step List within Case */
+        .step-list {
+            display: none;
+            padding: 0;
+        }
+
+        .case-item.expanded .step-list {
+            display: block;
+        }
+
+        .step-row {
+            display: flex;
+            padding: 12px 20px;
+            border-bottom: 1px solid #e5e9ee;
+            align-items: flex-start;
+            font-size: 13px;
+        }
+
+        .step-row:last-child {
+            border-bottom: none;
+        }
+
+        .step-row:hover {
+            background: #fdfdfd;
+        }
+
+        .step-status-icon {
+            width: 28px;
+            text-align: center;
+            margin-right: 12px;
+            font-weight: bold;
+            font-size: 13px;
+            padding-top: 2px;
+        }
+
+        .step-status-icon.success {
+            color: #39725a;
+        }
+
+        .step-status-icon.failed {
+            color: #ad4f4a;
+        }
+
+        .step-status-icon.warning {
+            color: #936323;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-desc {
+            color: #202731;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .step-detail {
+            color: #677381;
+            font-size: 12px;
+            font-family: Monaco, Consolas, Courier, monospace;
+        }
+
+        .step-time {
+            color: #677381;
+            width: 60px;
+            text-align: right;
+            padding-top: 2px;
+        }
+
+        .step-error {
+            margin-top: 8px;
+            padding: 10px 14px;
+            background: #fef0f0;
+            border: 1px solid #fde2e2;
+            border-radius: 4px;
+            color: #ad4f4a;
+            font-family: Monaco, Consolas, Courier, monospace;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+
+        .step-preview {
+            margin-top: 8px;
+            color: #677381;
+            font-size: 12px;
+        }
+
+        .step-preview img {
+            display: block;
+            max-width: 220px;
+            max-height: 140px;
+            margin-top: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 16px;
+            color: #677381;
+            font-size: 13px;
+            border-top: 1px solid #e5e9ee;
+            background: #f7f9fb;
+        }
+
+        body { color: #202731; font-size: 13px; line-height: 1.6; }
+        .header::before { content: 'AutoDroid / 执行报告'; display: block; color: #677381; font-size: 12px; letter-spacing: .04em; margin-bottom: 8px; }
+        .stat-card { text-align: left; padding: 12px 16px; border-radius: 6px; }
+        .summary { gap: 12px; }
+        .steps-section, .cases-section { padding: 16px 24px; }
+        .step-item, .case-item { border-radius: 6px; }
+        .report-evidence { padding: 16px 24px; border-top: 1px solid #e5e9ee; background: #fff; }
+        .report-evidence h2 { font-size: 15px; margin-bottom: 8px; }
+        .report-evidence a { color: #466b98; text-decoration: none; }
+        .report-evidence a:focus-visible, summary:focus-visible { outline: 2px solid #466b98; outline-offset: 3px; }
+        .report-evidence p { margin: 4px 0; overflow-wrap: anywhere; }
+        summary { cursor: pointer; padding: 8px 0; }
+        .technical-section { padding: 0 24px 16px; }
+        @media (max-width: 600px) {
+            body { padding: 8px; font-size: 14px; }
+            .header, .summary, .steps-section, .cases-section, .report-evidence { padding: 16px; }
+            .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .stat-card { padding: 12px; min-width: 0; }
+            .header h1 { overflow-wrap: anywhere; }
+            .meta { display: flex; flex-direction: column; }
+            .report-evidence a, summary { display: inline-flex; min-height: 44px; align-items: center; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>会员中心 · 登录状态与个人资料修改回归 / 长标题验证示例（隔离数据）</h1>
+            <div class="meta">
+                场景 ID: 90002 |
+                执行时间: 2026-10-03 13:04:00 - 2026-10-03 13:04:07 |
+                总耗时: 7.0s
+            </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary">
+            <div class="stat-card total">
+                <div class="value">2</div>
+                <div class="label">总用例</div>
+            </div>
+            <div class="stat-card success">
+                <div class="value">1</div>
+                <div class="label">通过用例</div>
+            </div>
+            <div class="stat-card failed">
+                <div class="value">1</div>
+                <div class="label">失败用例</div>
+            </div>
+            <div class="stat-card duration">
+                <div class="value">50%</div>
+                <div class="label">通过率</div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="progress-section">
+            <div class="progress-bar">
+                <div class="progress-passed" style="width: 50%"></div>
+
+                <div class="progress-failed" style="width: 50.0%"></div>
+
+            </div>
+        </div>
+
+        <!-- Cases -->
+
+        <section class="report-evidence"><h2>需要关注的用例 · 1</h2>
+        <p><a href="#case-2">会员中心 · 登录状态与个人资料修改回归 / 长标题验证示例（隔离数据）</a> · failed</p>
+        </section>
+        <div class="cases-section">
+            <h2 class="section-title">执行详情</h2>
+
+
+            <div id="case-1" class="case-item " tabindex="0" role="button" aria-label="切换用例详情" onkeydown="if(event.target === this &amp;&amp; (event.key === 'Enter' || event.key === ' ')){event.preventDefault();this.classList.toggle('expanded')}"
+                onclick="this.classList.toggle('expanded')">
+                <div class="case-header">
+                    <div class="case-index">1</div>
+                    <div class="case-info">
+                        <div class="case-title">首次登录</div>
+                        <div class="case-meta">Alias: 首次 | ID: 90001</div>
+                    </div>
+                    <div class="case-status success">
+                        通过
+                    </div>
+                </div>
+
+                <div class="step-list" onclick="event.stopPropagation()">
+
+
+                    <div class="step-row">
+                        <div class="step-status-icon success">
+                            1
+                        </div>
+                        <div class="step-content">
+                            <div class="step-desc">打开测试应用</div>
+
+
+
+                        </div>
+                        <div class="step-time">0.8s</div>
+                    </div>
+
+
+                    <div class="step-row">
+                        <div class="step-status-icon success">
+                            2
+                        </div>
+                        <div class="step-content">
+                            <div class="step-desc">进入会员中心</div>
+
+
+
+                        </div>
+                        <div class="step-time">0.4s</div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div id="case-2" class="case-item expanded" tabindex="0" role="button" aria-label="切换用例详情" onkeydown="if(event.target === this &amp;&amp; (event.key === 'Enter' || event.key === ' ')){event.preventDefault();this.classList.toggle('expanded')}"
+                onclick="this.classList.toggle('expanded')">
+                <div class="case-header">
+                    <div class="case-index">2</div>
+                    <div class="case-info">
+                        <div class="case-title">会员中心 · 登录状态与个人资料修改回归 / 长标题验证示例（隔离数据）</div>
+                        <div class="case-meta">Alias: 第二次执行同一用例 | ID: 90001</div>
+                    </div>
+                    <div class="case-status failed">
+                        失败
+                    </div>
+                </div>
+
+                <div class="step-list" onclick="event.stopPropagation()">
+
+
+                    <div class="step-row">
+                        <div class="step-status-icon success">
+                            1
+                        </div>
+                        <div class="step-content">
+                            <div class="step-desc">打开测试应用</div>
+
+
+
+                        </div>
+                        <div class="step-time">0.8s</div>
+                    </div>
+
+
+                    <div class="step-row">
+                        <div class="step-status-icon success">
+                            2
+                        </div>
+                        <div class="step-content">
+                            <div class="step-desc">进入会员中心</div>
+
+
+
+                        </div>
+                        <div class="step-time">0.4s</div>
+                    </div>
+
+
+                    <div class="step-row">
+                        <div class="step-status-icon failed">
+                            3
+                        </div>
+                        <div class="step-content">
+                            <div class="step-desc">确认昵称保存成功</div>
+
+
+                            <div class="step-error">等待 5 秒后仍未发现「保存成功」，实际页面显示「网络连接异常」。该信息来自隔离示例。</div>
+
+
+                        </div>
+                        <div class="step-time">5.2s</div>
+                    </div>
+
+
+                    <div class="step-row">
+                        <div class="step-status-icon warning">
+                            4
+                        </div>
+                        <div class="step-content">
+                            <div class="step-desc">尝试返回个人资料</div>
+
+
+                            <div class="step-error">示例提示：忽略错误后继续。</div>
+
+
+                        </div>
+                        <div class="step-time">0.6s</div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            AutoDroid 场景测试报告 | 生成于 2026-10-03 13:04:08
+        </div>
+    </div>
+</body>
+
+</html>

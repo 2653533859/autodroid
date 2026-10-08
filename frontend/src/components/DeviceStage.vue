@@ -15,6 +15,7 @@ import { useLivePreviewPolling } from '@/composables/useLivePreviewPolling'
 import ScrcpyPlayer from './ScrcpyPlayer.vue'
 import IosMjpegPlayer from './IosMjpegPlayer.vue'
 
+defineProps({ hideDeviceSelect: { type: Boolean, default: false } })
 const caseStore = useCaseStore()
 
 const syncMode = ref(false)
@@ -602,8 +603,11 @@ const statusLabel = (status) => {
 defineExpose({
   updateStateFromDump,
   refreshDevices: fetchDevices,
+  selectDevice: (serial) => { selectedSerial.value = serial; onDeviceChange() },
   selectedSerial,
   connectedDevices,
+  recordingDevices,
+  canObserveDevice: canObserveDeviceInCurrentMode,
   startOcrCrop,
   startImageCrop,
   ocrCropMode,
@@ -621,7 +625,7 @@ defineExpose({
       <div class="toolbar-left">
         <slot name="left"></slot>
       </div>
-      <div class="toolbar-center">
+      <div v-if="!hideDeviceSelect" class="toolbar-center">
         <el-select
           v-model="selectedSerial"
           placeholder="当前调试设备"
@@ -840,7 +844,7 @@ defineExpose({
   max-width: 420px;
   text-align: left;
   font-size: 12px;
-  color: #909399;
+  color: var(--ad-muted);
   line-height: 1.5;
 }
 .device-stage {
@@ -849,7 +853,7 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
+  background: var(--ad-bg);
 }
 
 .stage-toolbar {
@@ -859,8 +863,8 @@ defineExpose({
   column-gap: 12px;
   row-gap: 8px;
   padding: var(--stage-row-padding-y) 20px;
-  background: #fff;
-  border-bottom: 1px solid #f0f2f5;
+  background: var(--ad-surface);
+  border-bottom: 1px solid var(--ad-bg);
   min-height: var(--stage-row-height);
   flex-shrink: 0;
 }
@@ -898,8 +902,8 @@ defineExpose({
   align-content: center;
   gap: 8px 18px;
   padding: var(--stage-row-padding-y) 20px;
-  background: #fff;
-  border-bottom: 1px solid #e4e7ed;
+  background: var(--ad-surface);
+  border-bottom: 1px solid var(--ad-border);
   flex-wrap: wrap;
   min-height: var(--stage-row-height);
 }
@@ -916,17 +920,17 @@ defineExpose({
 .mode-group-label {
   font-size: 12px;
   font-weight: 500;
-  color: #909399;
+  color: var(--ad-muted);
   white-space: nowrap;
   line-height: 30px;
 }
 
 .mode-segmented {
-  --segment-border: #dcdfe6;
-  --segment-bg: #ffffff;
-  --segment-text: #606266;
-  --segment-active-bg: #ecf5ff;
-  --segment-active-text: #409eff;
+  --segment-border: var(--ad-border);
+  --segment-bg: var(--ad-surface);
+  --segment-text: var(--ad-muted);
+  --segment-active-bg: var(--ad-primary-soft);
+  --segment-active-text: var(--ad-primary);
 }
 
 .mode-segmented :deep(.el-radio-button__inner) {
@@ -956,8 +960,8 @@ defineExpose({
 }
 
 .mode-segmented :deep(.el-radio-button__inner:hover) {
-  color: #409eff;
-  border-color: #a0cfff;
+  color: var(--ad-primary);
+  border-color: var(--ad-primary-soft);
 }
 
 .device-select {
@@ -986,7 +990,7 @@ defineExpose({
 }
 
 .device-name {
-  color: #606266;
+  color: var(--ad-muted);
   font-size: 13px;
 }
 
@@ -1069,7 +1073,7 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #606266;
+  color: var(--ad-muted);
 }
 
 .live-pending p {
@@ -1095,7 +1099,7 @@ defineExpose({
 }
 
 .no-device {
-  color: #909399;
+  color: var(--ad-muted);
 }
 
 .hover-overlay {
@@ -1116,13 +1120,13 @@ defineExpose({
 .quick-image-title {
   font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .quick-image-desc {
   margin-top: 4px;
   font-size: 12px;
-  color: #606266;
+  color: var(--ad-muted);
 }
 
 .quick-image-actions {
@@ -1135,14 +1139,14 @@ defineExpose({
   position: absolute;
   bottom: 20px;
   left: 20px;
-  background: #fff;
-  color: #303133;
+  background: var(--ad-surface);
+  color: var(--ad-text);
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 12px;
   max-width: 350px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--ad-border);
 }
 
 .tip-row {
@@ -1159,7 +1163,7 @@ defineExpose({
   top: 20px;
   left: 20px;
   background: rgba(103, 194, 58, 0.92);
-  color: #fff;
+  color: var(--ad-surface);
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 12px;
@@ -1182,7 +1186,7 @@ defineExpose({
 
 .quick-image-toolbar span {
   font-size: 12px;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .quick-image-toolbar-actions {
@@ -1191,4 +1195,7 @@ defineExpose({
 }
 
 
+.stage-toolbar { display: flex; gap: 8px; padding: 4px 12px; flex-wrap: wrap; }
+.toolbar-right { margin-left: auto; }
+.mode-bar { padding: 8px 12px; }
 </style>

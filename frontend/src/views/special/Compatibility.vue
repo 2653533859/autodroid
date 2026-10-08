@@ -327,6 +327,7 @@ watch(
 )
 
 const runReplayPreflight = async () => {
+  if (loading.preflight) return
   if (routeSourceError.value) return ElMessage.error(routeSourceError.value)
   if (!replayForm.inspection_run_id) return ElMessage.warning('请选择巡检来源报告')
   if (selectedSourceBlocked.value) {
@@ -367,6 +368,7 @@ const toggleChain = chainId => {
 }
 
 const submitReplayRun = async () => {
+    if (loading.submitting) return
   if (!replayCanSubmit.value) {
     if (replayBlockers.value.length) return ElMessage.warning('预检阻断项尚未解决')
     if (!selectedChainIds.value.length) return ElMessage.warning('至少保留一条回放链路')
@@ -420,6 +422,7 @@ watch(() => legacyForm.compare_mode, mode => {
 })
 
 const submitLegacyRun = async () => {
+    if (loading.legacySubmitting) return
   if (!legacyForm.new_package_id) return ElMessage.warning('请选择待测 APK')
   if (isLegacyInspectionSource.value && !legacyForm.inspection_run_id) return ElMessage.warning('请选择巡检来源任务')
   if (!isLegacyInspectionSource.value && !legacyForm.page_set_id) return ElMessage.warning('请选择页面合集')
@@ -734,43 +737,43 @@ onActivated(refreshAll)
 </template>
 
 <style scoped>
-.compat-run-page { flex: 1; height: 0; overflow: auto; background: #f2f3f5; }
-.content-wrapper { min-height: calc(100% - 20px); margin: 10px; display: flex; flex-direction: column; gap: 12px; }
-.config-card, .reports-card, .legacy-collapse { border-radius: 4px; }
+.compat-run-page { flex: 1; height: 0; overflow: auto; background: var(--ad-bg); }
+.content-wrapper { min-height: calc(100% - 32px); margin: 16px; display: flex; flex-direction: column; gap: 12px; }
+.config-card, .reports-card, .legacy-collapse { border-radius: var(--ad-radius); }
 .reports-card { min-height: 300px; }
 .card-header, .header-actions, .page-set-row, .chain-toolbar, .version-row { display: flex; align-items: center; gap: 12px; }
 .card-header, .chain-toolbar { justify-content: space-between; }
-.card-title { font-size: 15px; font-weight: 700; color: #303133; }
+.card-title { font-size: 15px; font-weight: 700; color: var(--ad-text); }
 .top-alert { margin-bottom: 16px; }
 .compat-form :deep(.el-form-item) { margin-bottom: 16px; }
-.compat-form :deep(.el-form-item__label) { padding-bottom: 4px; line-height: 18px; font-weight: 600; color: #606266; }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 20px; }
+.compat-form :deep(.el-form-item__label) { padding-bottom: 4px; line-height: 18px; font-weight: 600; color: var(--ad-muted); }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 16px; }
 .replay-grid { grid-template-columns: repeat(3, minmax(180px, 1fr)); }
 .replay-options-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
 .replay-advanced-collapse { margin-top: -6px; border-top: 0; }
-.replay-advanced-collapse :deep(.el-collapse-item__header) { height: 38px; color: #606266; font-size: 13px; }
+.replay-advanced-collapse :deep(.el-collapse-item__header) { height: 38px; color: var(--ad-muted); font-size: 13px; }
 .replay-advanced-collapse :deep(.el-collapse-item__wrap) { border-bottom: 0; }
 .replay-advanced-collapse :deep(.el-collapse-item__content) { padding: 8px 0 0; }
-.threshold-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 0 16px; padding-top: 8px; border-top: 1px solid #ebeef5; }
+.threshold-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 0 16px; padding-top: 8px; border-top: 1px solid var(--ad-border); }
 .wide-control, .page-set-select { width: 100%; }
 .page-set-select { max-width: 560px; }
-.option-meta { float: right; margin-left: 16px; color: #909399; font-size: 12px; }
-.preflight-panel { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid #ebeef5; }
+.option-meta { float: right; margin-left: 16px; color: var(--ad-muted); font-size: 12px; }
+.preflight-panel { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--ad-border); }
 .version-row { align-items: stretch; flex-wrap: wrap; }
-.version-row > div { min-width: 240px; padding: 10px 12px; border: 1px solid #ebeef5; border-radius: 4px; background: #fafafa; display: flex; align-items: center; gap: 8px; }
-.version-row span { color: #909399; font-size: 12px; }
+.version-row > div { min-width: 240px; padding: 10px 12px; border: 1px solid var(--ad-border); border-radius: var(--ad-radius); background: var(--ad-bg); display: flex; align-items: center; gap: 8px; }
+.version-row span { color: var(--ad-muted); font-size: 12px; }
 .chain-toolbar { margin-top: 4px; }
-.chain-toolbar > div { display: flex; align-items: baseline; gap: 10px; }
+.chain-toolbar > div { display: flex; align-items: baseline; gap: 8px; }
 .install-confirmation { margin-top: 4px; }
 .preflight-actions { display: flex; justify-content: flex-end; }
-.legacy-collapse { padding: 0 16px; border: 1px solid #dcdfe6; background: #fff; }
+.legacy-collapse { padding: 0 16px; border: 1px solid var(--ad-border); background: var(--ad-surface); }
 .legacy-form { padding: 4px 0 12px; }
 .legacy-actions { display: flex; justify-content: flex-end; }
-.run-name { font-weight: 600; color: #303133; }
-.muted-text { color: #909399; font-size: 12px; }
+.run-name { font-weight: 600; color: var(--ad-text); }
+.muted-text { color: var(--ad-muted); font-size: 12px; }
 .result-summary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
 .summary-count { font-size: 12px; font-weight: 600; }
-.pass { color: #67c23a; } .warn { color: #e6a23c; } .fail { color: #f56c6c; }
+.pass { color: var(--ad-success); } .warn { color: var(--ad-warning); } .fail { color: var(--ad-danger); }
 @media (max-width: 960px) {
   .replay-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .card-header { align-items: flex-start; flex-direction: column; }
@@ -781,5 +784,12 @@ onActivated(refreshAll)
   .version-row > div { width: 100%; min-width: 0; }
   .chain-toolbar { align-items: flex-start; }
   .chain-toolbar > div { flex-direction: column; gap: 2px; }
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

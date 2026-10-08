@@ -1,4 +1,5 @@
 <script setup>
+import { chartColors, chartTheme } from '@/utils/chartTheme'
 import { computed } from 'vue'
 import VChart from 'vue-echarts'
 import './echartsSetup'
@@ -32,7 +33,7 @@ const chartOption = computed(() => {
             if (eventTimestamp === null || !perfPoint) return null
             return {
                 coord: [eventTimestamp, perfPoint[1]],
-                itemStyle: { color: event.type === 'ANR' ? '#E6A23C' : '#F56C6C' },
+                itemStyle: { color: event.type === 'ANR' ? chartColors.warning : chartColors.danger },
                 symbol: 'pin',
                 symbolSize: 40,
                 value: event.type,
@@ -42,7 +43,7 @@ const chartOption = computed(() => {
         .filter(Boolean)
 
     return {
-        title: { text: '性能监控', left: 'center', textStyle: { fontSize: 15, color: '#303133' } },
+        title: { text: '性能监控', left: 'center', textStyle: { fontSize: 14, color: chartColors.text } },
         tooltip: {
             trigger: 'axis',
             axisPointer: { type: 'cross' },
@@ -84,16 +85,16 @@ const chartOption = computed(() => {
                 smooth: true,
                 data: cpuSeries,
                 yAxisIndex: 0,
-                lineStyle: { color: '#409EFF', width: 2 },
-                itemStyle: { color: '#409EFF' },
-                areaStyle: { color: 'rgba(64,158,255,0.08)' },
+                lineStyle: { color: chartColors.primary, width: 2 },
+                itemStyle: { color: chartColors.primary },
+                areaStyle: { color: chartColors.primary, opacity: 0.08 },
                 markPoint: {
                     data: crashMarkPoints,
                     label: {
                         show: true,
                         formatter: (p) => p.data.value === 'ANR' ? 'ANR' : 'Crash',
                         color: '#fff',
-                        fontSize: 10,
+                        fontSize: 12,
                     },
                 },
             },
@@ -103,9 +104,9 @@ const chartOption = computed(() => {
                 smooth: true,
                 data: memSeries,
                 yAxisIndex: 1,
-                lineStyle: { color: '#67C23A', width: 2 },
-                itemStyle: { color: '#67C23A' },
-                areaStyle: { color: 'rgba(103,194,58,0.08)' },
+                lineStyle: { color: chartColors.success, width: 2 },
+                itemStyle: { color: chartColors.success },
+                areaStyle: { color: chartColors.success, opacity: 0.08 },
             },
         ],
     }
@@ -120,20 +121,26 @@ const handleChartClick = (params) => {
 
 <template>
     <el-card shadow="never" class="chart-card">
-        <VChart
-            v-if="perfData.length > 0"
+        <VChart v-if="perfData.length" :theme="chartTheme"
             :option="chartOption"
             :group="chartGroup"
             autoresize
             style="height: 400px; width: 100%"
             @click="handleChartClick"
         />
-        <el-empty v-else description="暂无性能数据" />
+        <el-empty v-if="!perfData.length" description="本次执行未采集到监控数据" :image-size="56" />
     </el-card>
 </template>
 
 <style scoped>
 .chart-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

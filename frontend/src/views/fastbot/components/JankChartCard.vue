@@ -1,4 +1,5 @@
 <script setup>
+import { chartColors, chartTheme } from '@/utils/chartTheme'
 import { computed } from 'vue'
 import dayjs from 'dayjs'
 import VChart from 'vue-echarts'
@@ -119,7 +120,7 @@ const jankChartOption = computed(() => {
         title: {
             text: chartTitle,
             left: 'center',
-            textStyle: { fontSize: 15, color: '#303133' },
+            textStyle: { fontSize: 14, color: chartColors.text },
         },
         tooltip: {
             trigger: 'axis',
@@ -169,9 +170,9 @@ const jankChartOption = computed(() => {
                 connectNulls: true,
                 data: fpsSeries,
                 yAxisIndex: 0,
-                lineStyle: { color: '#409EFF', width: 2 },
-                itemStyle: { color: '#409EFF' },
-                areaStyle: { color: 'rgba(64,158,255,0.08)' },
+                lineStyle: { color: chartColors.primary, width: 2 },
+                itemStyle: { color: chartColors.primary },
+                areaStyle: { color: chartColors.primary, opacity: 0.08 },
             }] : []),
             {
                 name: '卡顿率 (%)',
@@ -179,18 +180,18 @@ const jankChartOption = computed(() => {
                 smooth: true,
                 data: gfxSeries,
                 ...(hasFpsCurve ? { yAxisIndex: 1 } : {}),
-                lineStyle: { color: '#F56C6C', width: 2 },
-                itemStyle: { color: '#F56C6C' },
-                areaStyle: { color: 'rgba(245,108,108,0.08)' },
+                lineStyle: { color: chartColors.danger, width: 2 },
+                itemStyle: { color: chartColors.danger },
+                areaStyle: { color: chartColors.danger, opacity: 0.08 },
                 markLine: props.activeJankEventTime ? {
                     symbol: 'none',
                     label: {
                         show: true,
                         formatter: '当前事件',
-                        color: '#F56C6C',
+                        color: chartColors.danger,
                     },
                     lineStyle: {
-                        color: '#F56C6C',
+                        color: chartColors.danger,
                         type: 'dashed',
                         width: 1.5,
                     },
@@ -216,20 +217,26 @@ const handleJankChartClick = (params) => {
 
 <template>
     <el-card shadow="never" class="chart-card">
-        <VChart
-            v-if="jankData.length > 0"
+        <VChart v-if="jankData.length || traceArtifacts.length" :theme="chartTheme"
             :option="jankChartOption"
             :group="chartGroup"
             autoresize
             style="height: 400px; width: 100%"
             @click="handleJankChartClick"
         />
-        <el-empty v-else description="暂无卡顿监控数据" />
+        <el-empty v-if="!jankData.length && !traceArtifacts.length" description="本次执行未采集到监控数据" :image-size="56" />
     </el-card>
 </template>
 
 <style scoped>
 .chart-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

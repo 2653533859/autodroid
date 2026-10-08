@@ -81,7 +81,7 @@ defineExpose({add})
     <p v-if="!fields?.length" class="hint">先发送请求或添加响应样例，再选择业务字段。</p>
     <ReferencePicker v-model="picker" field-only :sources="[{...fieldSource,id:'__current__',name:'当前接口响应',fields}]" @select="pick" />
     <ReferencePicker v-model="expectedPicker" :sources="sources" :variables="variables" @select="update(active,'expected',$event)" />
-    <el-dialog v-model="suggestionOpen" title="添加业务校验" width="min(560px,94vw)" append-to-body @closed="afterSuggestionClosed">
+    <el-dialog class="ad-dialog" v-model="suggestionOpen" title="添加业务校验" width="min(560px,94vw)" append-to-body @closed="afterSuggestionClosed">
       <template v-if="suggestion"><p class="suggestion-path">{{ pathLabel(suggestion.path) }}</p><p class="hint">选择要验证的结果。编号、时间和凭证通常适合检查类型或非空。</p>
         <el-radio-group :model-value="suggestionMode" class="suggestion-options" @update:model-value="chooseSuggestion"><el-radio-button value="eq">等于</el-radio-button><el-radio-button value="not_empty">非空</el-radio-button><el-radio-button value="type">类型正确</el-radio-button><el-radio-button v-if="sources?.length" value="ref">与前序字段一致</el-radio-button></el-radio-group>
         <div class="suggestion-expected"><label v-if="suggestionMode!=='not_empty'">期望值</label><ValueEditor v-if="suggestionMode==='eq'" v-model="suggestion.expected" :sources="sources" :variables="variables" compact /><el-select v-else-if="suggestionMode==='type'" v-model="suggestion.expected.value" aria-label="期望类型"><el-option v-for="t in types" :key="t[0]" :label="t[1]" :value="t[0]" /></el-select><el-button v-else-if="suggestionMode==='ref'" class="reference-choice" @click="suggestionReferenceOpen=true">{{ suggestion.expected.kind==='ref' ? (sources.find(s=>s.id===suggestion.expected.step_id)?.name||'前序步骤')+' · '+pathLabel(suggestion.expected.path) : '选择前序步骤字段' }}</el-button><p v-else class="hint">字段存在且内容不为空即可通过，不固定当前响应值。</p></div>
@@ -93,13 +93,13 @@ defineExpose({add})
 </template>
 <style scoped>
 .assertions{container-type:inline-size;min-width:0}
-.check-notice{font-size:12px;color:#8a6429;background:#fff8eb;border:1px solid #f3e4c8;border-radius:6px;padding:10px 12px;margin-bottom:12px;line-height:20px}
-.suggestion-path{font-size:14px;font-weight:600;overflow-wrap:anywhere;margin-top:0}.suggestion-options{margin:10px 0;display:flex;flex-wrap:wrap}.suggestion-expected{margin-top:12px;min-width:0}.suggestion-expected>label{display:block;font-size:12px;color:#687386;margin-bottom:8px}.suggestion-expected>.el-select{width:160px}.reference-choice{max-width:100%;height:auto;min-height:32px;white-space:normal;text-align:left;overflow-wrap:anywhere}
-.assertion{display:grid;grid-template-columns:minmax(0,1fr) 120px minmax(0,1.25fr) 32px;align-items:start;gap:10px;padding:10px;background:#f8fafc;border:1px solid #ebeef5;border-radius:4px;margin-bottom:10px;scroll-margin-top:12px}
+.check-notice{font-size:12px;color:var(--ad-warning);background:var(--ad-warning-soft);border:1px solid var(--ad-border);border-radius:6px;padding:10px 12px;margin-bottom:12px;line-height:20px}
+.suggestion-path{font-size: 13px;font-weight:600;overflow-wrap:anywhere;margin-top:0}.suggestion-options{margin:10px 0;display:flex;flex-wrap:wrap}.suggestion-expected{margin-top:12px;min-width:0}.suggestion-expected>label{display:block;font-size:12px;color:var(--ad-muted);margin-bottom:8px}.suggestion-expected>.el-select{width:160px}.reference-choice{max-width:100%;height:auto;min-height:32px;white-space:normal;text-align:left;overflow-wrap:anywhere}
+.assertion{display:grid;grid-template-columns:minmax(0,1fr) 120px minmax(0,1.25fr) 32px;align-items:start;gap:8px;padding:10px;background:var(--ad-bg);border:1px solid var(--ad-border);border-radius: var(--ad-radius);margin-bottom:10px;scroll-margin-top:12px}
 .field-button{width:100%;min-width:0;justify-content:flex-start;white-space:normal;height:auto;min-height:32px;text-align:left;line-height:20px}
 .field-button :deep(span){display:block;min-width:0;width:100%;white-space:normal;overflow-wrap:anywhere}
-.operator{width:100%;min-width:0}.expected-value{min-width:0}.expected-label{display:block;font-size:12px;color:#909399;margin-bottom:8px}
-.delete-assertion{margin:0;min-height:32px}.hint{font-size:12px;color:#909399;overflow-wrap:anywhere}
+.operator{width:100%;min-width:0}.expected-value{min-width:0}.expected-label{display:block;font-size:12px;color:var(--ad-muted);margin-bottom:8px}
+.delete-assertion{margin:0;min-height:32px}.hint{font-size:12px;color:var(--ad-muted);overflow-wrap:anywhere}
 .structured-assertion{grid-template-columns:minmax(0,1fr) 120px 32px}
 .structured-assertion>.expected-value{grid-column:1/-1;grid-row:2}
 .structured-assertion>.delete-assertion{grid-column:3;grid-row:1}
@@ -117,4 +117,5 @@ defineExpose({add})
   .operator{grid-column:1/-1;width:min(160px,100%)}
   .expected-value,.structured-assertion>.expected-value{grid-column:1/-1;grid-row:3}
 }
+@media(max-width:760px){.hint,.check-notice,.suggestion-expected>label,.expected-label,.suggestion-path{font-size:14px}.delete-assertion,.field-button{min-height:44px}}
 </style>

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { FolderAdd, EditPen, Delete, Document, FolderOpened } from '@element-plus/icons-vue'
+import { FolderAdd, EditPen, Delete, Document, FolderOpened, MoreFilled } from '@element-plus/icons-vue'
 
 /**
  * 通用目录树面板（用例/场景列表页共用）。
@@ -168,7 +168,7 @@ defineExpose({ refresh })
         <div class="aside-header">
             <span class="aside-title">{{ title }}</span>
             <el-tooltip content="新建根目录" placement="top">
-                <el-button :icon="FolderAdd" size="small" type="primary" link @click="handleCreateRootFolder" />
+                <el-button :icon="FolderAdd" size="small" type="primary" link aria-label="新建根目录" @click="handleCreateRootFolder" />
             </el-tooltip>
         </div>
 
@@ -211,11 +211,14 @@ defineExpose({ refresh })
                                 <el-icon :size="16" class="folder-icon"><FolderOpened /></el-icon>
                                 <span class="folder-name">{{ data.name }}</span>
                             </div>
-                            <span v-if="data.type === 'folder'" class="node-actions folder-item-actions" @click.stop>
-                                <el-button :icon="FolderAdd" size="small" link type="primary" title="新增子目录" @click="handleCreateSubFolder(data)" />
-                                <el-button :icon="EditPen" size="small" link type="primary" title="重命名" @click="startRename(data)" />
-                                <el-button :icon="Delete" size="small" link type="danger" title="删除" @click="handleDeleteFolder(data)" />
-                            </span>
+                            <el-dropdown v-if="data.type === 'folder'" trigger="click" class="folder-item-actions" @click.stop>
+                                <el-button :icon="MoreFilled" size="small" text :aria-label="data.name + ' 的目录操作'" />
+                                <template #dropdown><el-dropdown-menu>
+                                    <el-dropdown-item @click="handleCreateSubFolder(data)">新增子目录</el-dropdown-item>
+                                    <el-dropdown-item @click="startRename(data)">重命名</el-dropdown-item>
+                                    <el-dropdown-item divided @click="handleDeleteFolder(data)">删除</el-dropdown-item>
+                                </el-dropdown-menu></template>
+                            </el-dropdown>
                         </template>
                     </div>
                 </template>
@@ -236,15 +239,15 @@ defineExpose({ refresh })
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
-    border-bottom: 1px solid #ebeef5;
+    padding: 12px;
+    border-bottom: 1px solid var(--ad-border);
     flex-shrink: 0;
 }
 
 .aside-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .tree-wrapper {
@@ -254,21 +257,21 @@ defineExpose({ refresh })
 }
 
 :deep(.el-tree-node__content) {
-    height: 38px;
-    border-radius: 8px;
-    margin-bottom: 4px;
+    height: 32px;
+    border-radius: 6px;
+    margin-bottom: 2px;
     padding-right: 8px !important;
     transition: all 0.2s ease;
     border: 1px solid transparent;
 }
 
 :deep(.el-tree-node__content:hover) {
-    background: #f5f7fa;
+    background: var(--ad-bg);
 }
 
 :deep(.el-tree-node.is-current > .el-tree-node__content) {
-    background-color: #ecf5ff;
-    border: 1px solid #b3d8ff;
+    background-color: var(--ad-primary-soft);
+    border: 1px solid var(--ad-primary-soft);
 }
 
 :deep(.el-tree__drop-indicator) {
@@ -296,13 +299,13 @@ defineExpose({ refresh })
 }
 
 .folder-icon {
-    color: #409eff;
+    color: var(--ad-primary);
     flex-shrink: 0;
 }
 
 .folder-name {
     font-size: 13px;
-    color: #303133;
+    color: var(--ad-text);
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -312,12 +315,12 @@ defineExpose({ refresh })
 .folder-item-actions {
     display: flex;
     gap: 2px;
-    opacity: 0;
+    opacity: 1;
     transition: opacity 0.2s;
     flex-shrink: 0;
 }
 
-.tree-node:hover .folder-item-actions {
+.tree-node:hover .folder-item-actions, .tree-node:focus-within .folder-item-actions {
     opacity: 1;
 }
 
@@ -338,16 +341,17 @@ defineExpose({ refresh })
 }
 
 .leaf-icon {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 13px;
 }
 
 .leaf-label {
-    color: #606266;
+    color: var(--ad-muted);
     font-weight: 400;
 }
 
 .is-leaf-node:hover .leaf-label {
-    color: #409eff;
+    color: var(--ad-primary);
 }
+.folder-item-actions :deep(.el-button) { width: 24px; height: 28px; padding: 0; }
 </style>

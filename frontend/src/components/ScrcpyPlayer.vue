@@ -989,8 +989,8 @@ defineExpose({ connect, disconnect, reconnect })
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: #fff;
-  color: #606266;
+  background: var(--ad-surface);
+  color: var(--ad-muted);
   border-bottom: 1px solid #e4e7ed;
 }
 
@@ -1042,7 +1042,7 @@ defineExpose({ connect, disconnect, reconnect })
 }
 
 .inspection-overlay {
-  color: #67c23a;
+  color: var(--ad-success);
   pointer-events: auto;
   cursor: pointer;
 }
@@ -1055,12 +1055,12 @@ defineExpose({ connect, disconnect, reconnect })
 
 .inspection-overlay circle {
   fill: currentColor;
-  stroke: #fff;
+  stroke: var(--ad-surface);
   stroke-width: 1.5;
 }
 
 .inspection-overlay text {
-  fill: #fff;
+  fill: var(--ad-surface);
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: middle;
@@ -1084,7 +1084,7 @@ defineExpose({ connect, disconnect, reconnect })
 .inspection-overlay--action_started,
 .inspection-overlay--invoking,
 .inspection-overlay--active {
-  color: #e6a23c;
+  color: var(--ad-warning);
   animation: inspection-overlay-pulse 0.9s ease-in-out infinite alternate;
 }
 
@@ -1093,7 +1093,7 @@ defineExpose({ connect, disconnect, reconnect })
 .inspection-overlay--self_loop,
 .inspection-overlay--no_effect,
 .inspection-overlay--completed {
-  color: #909399;
+  color: var(--ad-muted);
 }
 
 .inspection-overlay--blocked,
@@ -1116,15 +1116,15 @@ defineExpose({ connect, disconnect, reconnect })
 .inspection-overlay--ambiguous,
 .inspection-overlay--locator_drift,
 .inspection-overlay--coordinate_only {
-  color: #e6a23c;
+  color: var(--ad-warning);
 }
 
 .inspection-overlay--coordinate {
-  color: #409eff;
+  color: var(--ad-primary);
 }
 
 .inspection-overlay--no_effect.inspection-overlay--coordinate {
-  color: #909399;
+  color: var(--ad-muted);
 }
 
 .inspection-overlay--action_error,
@@ -1140,9 +1140,9 @@ defineExpose({ connect, disconnect, reconnect })
 }
 
 .inspection-overlay.is-selected rect {
-  stroke: #fff;
+  stroke: var(--ad-surface);
   stroke-width: 4;
-  filter: drop-shadow(0 0 5px #409eff);
+  filter: drop-shadow(0 0 5px var(--ad-primary));
 }
 
 @keyframes inspection-overlay-pulse {
@@ -1154,8 +1154,8 @@ defineExpose({ connect, disconnect, reconnect })
   position: absolute;
   bottom: 20px;
   left: 20px;
-  background: #fff;
-  color: #303133;
+  background: var(--ad-surface);
+  color: var(--ad-text);
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 12px;

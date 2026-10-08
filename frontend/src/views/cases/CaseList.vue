@@ -2,10 +2,10 @@
 import { ref, onActivated, onDeactivated, onUnmounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, VideoPlay, CopyDocument, Delete, Search, Refresh, Edit, ArrowDown, CircleClose } from '@element-plus/icons-vue'
+import { Plus, VideoPlay, CopyDocument, Delete, Search, Refresh, Edit, ArrowDown, CircleClose, FolderOpened, MoreFilled } from '@element-plus/icons-vue'
 import api from '@/api'
 import FolderTreePanel from '@/components/FolderTreePanel.vue'
-import { deviceStatusLabel, deviceStatusTagType, normalizeRunStatus, runStatusTagType } from '@/utils/statusMeta'
+import { deviceStatusLabel, deviceStatusTagType, normalizeRunStatus, runStatusTagType, runStatusLabel } from '@/utils/statusMeta'
 import { useUserStore } from '@/stores/useUserStore'
 import dayjs from 'dayjs'
 import { useClientMode } from '@/composables/useClientMode'
@@ -129,6 +129,10 @@ const handleEdit = (row) => {
 
 // ==================== Run Configuration ====================
 const runDialogVisible = ref(false)
+const runPhase = ref('')
+const runBusy = computed(() => Boolean(runPhase.value))
+const terminatingIds = ref(new Set())
+const foldersVisible = ref(true)
 const runningCaseId = ref(null)
 const runForm = reactive({
     envId: null,
@@ -149,9 +153,9 @@ const summarizePrecheckFailure = (payload) => {
     return '预检失败'
 }
 
-const precheckCaseOnDevice = async (caseId, serial) => {
+const precheckCaseOnDevice = async (caseId, serial, selectedEnvironment = runForm.envId) => {
     try {
-        const { data } = await api.precheckTestCase(caseId, runForm.envId, serial)
+        const { data } = await api.precheckTestCase(caseId, selectedEnvironment, serial)
         if (data?.ok) return { ok: true }
         return { ok: false, reason: summarizePrecheckFailure(data) }
     } catch (err) {
@@ -211,7 +215,7 @@ const caseStatusText = (row) => {
         const queue = caseQueueInfo(row)
         return queue?.position ? `排队中（第 ${queue.position} 位）` : '排队中'
     }
-    return s
+    return runStatusLabel(s)
 }
 
 // 从 /runs/active 的 items 构建活跃 run 条目（含排队信息）
@@ -233,6 +237,7 @@ const buildActiveCaseEntry = (items, fallback = {}) => {
 }
 
 const handleRunClick = async (row) => {
+    if (runBusy.value || terminatingIds.value.has(row.id)) return
     if (isCaseRunActive(row)) {
         await terminateCaseRun(row)
         return
@@ -244,17 +249,22 @@ const handleRunClick = async (row) => {
 }
 
 const confirmRun = async () => {
+    if (runBusy.value) return
     if (!runningCaseId.value) return
     if (!runForm.deviceSerials || runForm.deviceSerials.length === 0) {
         ElMessage.warning('请至少选择一台设备')
         return
     }
     
+    const targetId = runningCaseId.value
+    const selectedEnvironment = runForm.envId
+    const selectedDevices = [...runForm.deviceSerials]
+    runPhase.value = 'prechecking'
     try {
         const runnable = []
         const blocked = []
-        for (const serial of runForm.deviceSerials) {
-            const check = await precheckCaseOnDevice(runningCaseId.value, serial)
+        for (const serial of selectedDevices) {
+            const check = await precheckCaseOnDevice(targetId, serial, selectedEnvironment)
             if (check.ok) runnable.push(serial)
             else blocked.push({ serial, reason: check.reason })
         }
@@ -265,7 +275,8 @@ const confirmRun = async () => {
             return
         }
 
-        const { data } = await api.runTestCaseBatch(runningCaseId.value, runForm.envId, runnable)
+        runPhase.value = 'submitting'
+        const { data } = await api.runTestCaseBatch(targetId, selectedEnvironment, runnable)
 
         // 并发超限的任务会进入 FIFO 队列而非失败：区分"已开始 / 已加入队列"
         const runs = Array.isArray(data?.runs) ? data.runs : []
@@ -293,7 +304,7 @@ const confirmRun = async () => {
         }
         runDialogVisible.value = false
         // Update the item status optimistically
-        const caseItem = cases.value.find(c => c.id === runningCaseId.value)
+        const caseItem = cases.value.find(c => c.id === targetId)
         if (caseItem) caseItem.last_run_status = startedCount > 0 || queuedRuns.length === 0 ? 'RUNNING' : 'QUEUED'
         const activeEntry = {
             batch_id: data?.batch_id,
@@ -305,17 +316,20 @@ const confirmRun = async () => {
         }
         activeCaseRuns.value = {
             ...activeCaseRuns.value,
-            [runningCaseId.value]: activeEntry
+            [targetId]: activeEntry
         }
         startActiveRunPolling()
     } catch (err) {
         ElMessage.error('启动批量执行失败: ' + err.message)
+    } finally {
+        runPhase.value = ''
     }
 }
 
 const terminateCaseRun = async (row) => {
     const active = activeCaseRuns.value[row.id]
-    if (!active) return
+    if (!active || terminatingIds.value.has(row.id)) return
+    terminatingIds.value.add(row.id)
     try {
         await api.cancelRun({
             kind: 'case',
@@ -331,6 +345,8 @@ const terminateCaseRun = async (row) => {
         activeCaseRuns.value = next
     } catch (err) {
         ElMessage.error('终止失败: ' + (err.response?.data?.detail || err.message))
+    } finally {
+        terminatingIds.value.delete(row.id)
     }
 }
 
@@ -479,6 +495,8 @@ const handlePriorityChange = async (row, newVal) => {
     }
 }
 
+const fullTime = value => value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '—'
+
 const formatTime = (time) => {
     if (!time) return '-'
     return dayjs(time).format('YYYY-MM-DD HH:mm')
@@ -508,6 +526,7 @@ onUnmounted(stopActiveRunPolling)
             <el-button :icon="Refresh" circle @click="fetchCases" />
         </div>
 
+        <el-alert v-if="errorMsg" :title="errorMsg" type="error" show-icon :closable="false"><el-button link @click="fetchCases">重试</el-button></el-alert>
         <div class="mobile-case-list" v-loading="loading">
             <article
                 v-for="item in cases"
@@ -534,8 +553,8 @@ onUnmounted(stopActiveRunPolling)
                 </div>
 
                 <div class="mobile-case-actions">
-                    <el-button type="primary" :icon="VideoPlay" @click="handleRunClick(item)">
-                        执行用例
+                    <el-button :type="isCaseRunActive(item) ? 'danger' : 'primary'" :icon="isCaseRunActive(item) ? CircleClose : VideoPlay" :disabled="runBusy" :loading="terminatingIds.has(item.id)" @click="handleRunClick(item)">
+                        {{ isCaseRunActive(item) ? '终止' : '运行用例' }}
                     </el-button>
                 </div>
             </article>
@@ -547,17 +566,19 @@ onUnmounted(stopActiveRunPolling)
                 v-model:current-page="currentPage"
                 :page-size="pageSize"
                 :background="true"
-                layout="prev, pager, next"
+                layout="prev, slot, next"
                 :total="total"
                 @current-change="handleCurrentChange"
-            />
+            >
+                <span class="mobile-page-position">{{ currentPage }} / {{ Math.ceil(total / pageSize) }}</span>
+            </el-pagination>
         </div>
     </div>
 
     <div v-else class="case-list-container">
         <el-container class="main-layout">
             <!-- Left: Folder Tree -->
-            <el-aside width="200px" class="folder-aside">
+            <el-aside v-show="foldersVisible" width="176px" class="folder-aside">
                 <FolderTreePanel
                     ref="treePanelRef"
                     title="用例目录"
@@ -579,6 +600,7 @@ onUnmounted(stopActiveRunPolling)
                 <div class="content-wrapper">
                     <div class="toolbar">
                         <div class="left-tools">
+                            <el-button :icon="FolderOpened" :aria-expanded="foldersVisible" :title="foldersVisible ? '收起目录' : '展开目录'" @click="foldersVisible = !foldersVisible" />
                             <el-input
                                 v-model="queryParams.keyword"
                                 placeholder="搜索用例名称..."
@@ -592,7 +614,7 @@ onUnmounted(stopActiveRunPolling)
                         </div>
 
                         <div class="right-tools">
-                            <el-tooltip :content="selectedHasUnauthorizedCase ? '仅能删除自己创建的用例' : '批量删除'" placement="top">
+                            <el-tooltip v-if="selectedCases.length" :content="selectedHasUnauthorizedCase ? '仅能删除自己创建的用例' : '批量删除'" placement="top">
                                 <span class="button-tooltip-wrap">
                                     <el-button type="danger" plain :icon="Delete" :disabled="selectedCases.length === 0 || selectedHasUnauthorizedCase" @click="handleBatchDelete">
                                         批量删除
@@ -606,20 +628,19 @@ onUnmounted(stopActiveRunPolling)
                     <el-alert v-if="errorMsg" :title="errorMsg" type="error" show-icon style="margin-bottom: 20px" />
 
                     <div class="table-container">
-                        <el-table
+                        <el-table class="ad-table"
                             :data="cases"
                             v-loading="loading"
                             style="width: 100%"
                             height="100%"
                             @selection-change="handleSelectionChange"
-                            :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
+
                         >
-                            <el-table-column type="selection" width="55" align="center" />
-                            <el-table-column prop="id" label="ID" width="70" align="center" />
+                            <el-table-column type="selection" width="40" align="center" />
 
                             <el-table-column label="用例名称" min-width="200">
                                 <template #default="{ row }">
-                                    <span class="case-name" @click="handleEdit(row)">{{ row.name }}</span>
+                                    <button class="ad-name-button" :title="row.name" @click="handleEdit(row)">{{ row.name }}</button>
                                 </template>
                             </el-table-column>
 
@@ -657,54 +678,14 @@ onUnmounted(stopActiveRunPolling)
                                 </template>
                             </el-table-column>
 
-                            <el-table-column label="创建信息" width="180" align="center">
-                                <template #default="{ row }">
-                                    <div class="user-info">
-                                        <span>{{ row.creator_name || '-' }}</span>
-                                        <span class="time">{{ formatTime(row.created_at) }}</span>
-                                    </div>
-                                </template>
+                            <el-table-column label="最后更新" width="136">
+                                <template #default="{ row }"><el-popover trigger="click" width="280"><template #reference><el-button text class="metadata-trigger" :aria-label="row.name + ' 的详细信息'">{{ formatTime(row.updated_at) }}</el-button></template><dl class="ad-metadata"><dt>ID</dt><dd>#{{ row.id }}</dd><dt>创建人</dt><dd>{{ row.creator_name || '—' }}</dd><dt>创建时间</dt><dd>{{ fullTime(row.created_at) }}</dd><dt>更新人</dt><dd>{{ row.updater_name || '—' }}</dd><dt>更新时间</dt><dd>{{ fullTime(row.updated_at) }}</dd></dl></el-popover></template>
                             </el-table-column>
-
-                            <el-table-column label="最后更新" width="180" align="center">
-                                <template #default="{ row }">
-                                    <div class="user-info">
-                                        <span>{{ row.updater_name || '-' }}</span>
-                                        <span class="time">{{ formatTime(row.updated_at) }}</span>
-                                    </div>
-                                </template>
-                            </el-table-column>
-
-                            <el-table-column label="操作" width="180" align="center" fixed="right">
-                                <template #default="{ row }">
-                                    <div class="case-action-buttons">
-                                        <el-tooltip content="后台运行" placement="top">
-                                            <span class="button-tooltip-wrap">
-                                                <el-button
-                                                    :icon="isCaseRunActive(row) ? CircleClose : VideoPlay"
-                                                    link
-                                                    :type="isCaseRunActive(row) ? 'danger' : 'success'"
-                                                    @click="handleRunClick(row)"
-                                                />
-                                            </span>
-                                        </el-tooltip>
-                                        <el-tooltip content="编辑" placement="top">
-                                            <span class="button-tooltip-wrap">
-                                                <el-button :icon="Edit" link type="primary" @click="handleEdit(row)" />
-                                            </span>
-                                        </el-tooltip>
-                                        <el-tooltip content="克隆" placement="top">
-                                            <span class="button-tooltip-wrap">
-                                                <el-button :icon="CopyDocument" link type="primary" @click="handleClone(row)" />
-                                            </span>
-                                        </el-tooltip>
-                                        <el-tooltip :content="deletePermissionTip(row)" placement="top">
-                                            <span class="button-tooltip-wrap">
-                                                <el-button :icon="Delete" link type="danger" :disabled="!canDeleteCase(row)" @click="handleDelete(row)" />
-                                            </span>
-                                        </el-tooltip>
-                                    </div>
-                                </template>
+                            <el-table-column label="操作" width="128" align="right" fixed="right">
+                                <template #default="{ row }"><div class="ad-row-actions">
+                                    <el-button link :type="isCaseRunActive(row) ? 'danger' : 'primary'" :loading="terminatingIds.has(row.id)" :disabled="runBusy" @click="handleRunClick(row)">{{ isCaseRunActive(row) ? '终止' : '运行' }}</el-button>
+                                    <el-dropdown trigger="click"><el-button text :icon="MoreFilled" :aria-label="row.name + ' 的更多操作'" /><template #dropdown><el-dropdown-menu><el-dropdown-item @click="handleEdit(row)">编辑</el-dropdown-item><el-dropdown-item @click="handleClone(row)">复制用例</el-dropdown-item><el-dropdown-item divided :disabled="!canDeleteCase(row)" :title="deletePermissionTip(row)" @click="handleDelete(row)">删除</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
+                                </div></template>
                             </el-table-column>
                         </el-table>
                     </div>
@@ -726,8 +707,8 @@ onUnmounted(stopActiveRunPolling)
         </el-container>
 
         <!-- Run Configuration Dialog -->
-        <el-dialog v-model="runDialogVisible" title="运行配置" width="400px">
-            <el-form :model="runForm" label-width="100px">
+        <el-dialog v-model="runDialogVisible" title="运行配置" width="400px" :close-on-click-modal="!runBusy" :close-on-press-escape="!runBusy" :show-close="!runBusy">
+            <el-form :disabled="runBusy" :model="runForm" label-width="100px">
                 <el-form-item label="目标设备">
                     <el-select v-model="runForm.deviceSerials" multiple collapse-tags placeholder="选择设备 (可选)" clearable style="width: 100%">
                         <el-option
@@ -741,7 +722,7 @@ onUnmounted(stopActiveRunPolling)
                                 <span>{{ dev.custom_name || dev.market_name || dev.model || dev.serial }}</span>
                                 <div style="display: flex; align-items: center; gap: 6px;">
                                     <el-tag :type="deviceStatusTagType(dev.status)" size="small">{{ deviceStatusLabel(dev.status) }}</el-tag>
-                                    <span v-if="deviceUnavailableReason(dev)" style="font-size: 12px; color: #e6a23c;">
+                                    <span v-if="deviceUnavailableReason(dev)" style="font-size: 12px; color: var(--ad-warning);">
                                         {{ deviceUnavailableReason(dev) }}
                                     </span>
                                 </div>
@@ -753,7 +734,7 @@ onUnmounted(stopActiveRunPolling)
                     </div>
                 </el-form-item>
                 <el-form-item label="运行环境">
-                    <el-select v-model="runForm.envId" placeholder="选择环境 (可选)" clearable style="width: 100%">
+                    <el-select :disabled="runBusy" v-model="runForm.envId" placeholder="选择环境 (可选)" clearable style="width: 100%">
                         <el-option
                             v-for="env in environments"
                             :key="env.id"
@@ -765,8 +746,8 @@ onUnmounted(stopActiveRunPolling)
             </el-form>
             <template #footer>
                 <div class="dialog-footer">
-                    <el-button @click="runDialogVisible = false">取消</el-button>
-                    <el-button type="primary" @click="confirmRun">开始执行</el-button>
+                    <el-button :disabled="runBusy" @click="runDialogVisible = false">取消</el-button>
+                    <el-button type="primary" :loading="runBusy" :disabled="runBusy" @click="confirmRun">{{ runPhase === 'prechecking' ? '预检中' : runPhase === 'submitting' ? '启动中' : '开始执行' }}</el-button>
                 </div>
             </template>
         </el-dialog>
@@ -776,13 +757,14 @@ onUnmounted(stopActiveRunPolling)
         v-if="isMobileMode"
         v-model="runDialogVisible"
         title="运行配置"
-        placement="bottom"
+        direction="btt"
+        :close-on-click-modal="!runBusy" :close-on-press-escape="!runBusy" :show-close="!runBusy"
         size="82%"
         class="mobile-run-drawer"
     >
         <div class="mobile-run-form">
             <label class="mobile-run-label">目标设备</label>
-            <el-checkbox-group v-model="runForm.deviceSerials" class="mobile-device-checks">
+            <el-checkbox-group :disabled="runBusy" v-model="runForm.deviceSerials" class="mobile-device-checks">
                 <el-checkbox
                     v-for="dev in devices"
                     :key="dev.serial"
@@ -802,7 +784,7 @@ onUnmounted(stopActiveRunPolling)
             </div>
 
             <label class="mobile-run-label">运行环境</label>
-            <el-select v-model="runForm.envId" placeholder="选择环境 (可选)" clearable style="width: 100%">
+            <el-select :disabled="runBusy" v-model="runForm.envId" placeholder="选择环境 (可选)" clearable style="width: 100%">
                 <el-option
                     v-for="env in environments"
                     :key="env.id"
@@ -814,8 +796,8 @@ onUnmounted(stopActiveRunPolling)
 
         <template #footer>
             <div class="mobile-drawer-footer">
-                <el-button @click="runDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="confirmRun">开始执行</el-button>
+                <el-button :disabled="runBusy" @click="runDialogVisible = false">取消</el-button>
+                <el-button type="primary" :loading="runBusy" :disabled="runBusy" @click="confirmRun">{{ runPhase === 'prechecking' ? '预检中' : runPhase === 'submitting' ? '启动中' : '开始执行' }}</el-button>
             </div>
         </template>
     </el-drawer>
@@ -826,7 +808,7 @@ onUnmounted(stopActiveRunPolling)
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f2f3f5;
+    background: var(--ad-bg);
 }
 
 .main-layout {
@@ -838,7 +820,7 @@ onUnmounted(stopActiveRunPolling)
 
 /* ==================== Left Aside ==================== */
 .folder-aside {
-    background: #fff;
+    background: var(--ad-surface);
     border-radius: 4px;
     display: flex;
     flex-direction: column;
@@ -875,8 +857,8 @@ onUnmounted(stopActiveRunPolling)
 .content-wrapper {
     flex: 1;
     min-height: 0;
-    padding: 20px;
-    background: #fff;
+    padding: 12px;
+    background: var(--ad-surface);
     border-radius: 4px;
     display: flex;
     flex-direction: column;
@@ -915,7 +897,7 @@ onUnmounted(stopActiveRunPolling)
 .run-warning-hint {
     margin-top: 6px;
     font-size: 12px;
-    color: #e6a23c;
+    color: var(--ad-warning);
 }
 
 .search-input {
@@ -924,7 +906,7 @@ onUnmounted(stopActiveRunPolling)
 
 .case-name {
     font-weight: 500;
-    color: #409eff;
+    color: var(--ad-primary);
     cursor: pointer;
 }
 .case-name:hover {
@@ -939,10 +921,10 @@ onUnmounted(stopActiveRunPolling)
 }
 .user-info .time {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
 }
 
-.text-gray { color: #909399; }
+.text-gray { color: var(--ad-muted); }
 .el-dropdown-link { cursor: pointer; display: flex; align-items: center; }
 .priority-tag {
     width: 48px;
@@ -968,7 +950,7 @@ onUnmounted(stopActiveRunPolling)
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f6f7f9;
+    background: var(--ad-bg);
     padding: 12px;
     box-sizing: border-box;
     overflow: hidden;
@@ -995,9 +977,9 @@ onUnmounted(stopActiveRunPolling)
 }
 
 .mobile-case-card {
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--ad-border);
     border-radius: 8px;
-    background: #ffffff;
+    background: var(--ad-surface);
     padding: 14px;
 }
 
@@ -1017,7 +999,7 @@ onUnmounted(stopActiveRunPolling)
 
 .mobile-case-title strong {
     font-size: 15px;
-    color: #303133;
+    color: var(--ad-text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1025,8 +1007,8 @@ onUnmounted(stopActiveRunPolling)
 
 .mobile-case-title span,
 .mobile-case-meta {
-    font-size: 12px;
-    color: #909399;
+    font-size: 14px;
+    color: var(--ad-muted);
 }
 
 .mobile-case-meta {
@@ -1062,7 +1044,7 @@ onUnmounted(stopActiveRunPolling)
 .mobile-run-form :deep(.el-select__wrapper),
 .mobile-run-form :deep(.el-input__wrapper) {
     min-height: 44px;
-    font-size: 16px;
+    font-size: 14px;
 }
 
 .mobile-run-form :deep(.el-select__placeholder),
@@ -1071,9 +1053,9 @@ onUnmounted(stopActiveRunPolling)
 }
 
 .mobile-run-label {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .mobile-device-checks {
@@ -1084,10 +1066,10 @@ onUnmounted(stopActiveRunPolling)
 
 .mobile-device-check {
     margin-right: 0;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--ad-border);
     border-radius: 8px;
     padding: 10px;
-    background: #fff;
+    background: var(--ad-surface);
 }
 
 .mobile-device-check :deep(.el-checkbox__label) {
@@ -1112,8 +1094,9 @@ onUnmounted(stopActiveRunPolling)
 
 .mobile-device-check small {
     display: block;
+    font-size: 14px;
     margin-top: 4px;
-    color: #e6a23c;
+    color: var(--ad-warning);
 }
 
 .mobile-drawer-footer {
@@ -1125,4 +1108,30 @@ onUnmounted(stopActiveRunPolling)
 .mobile-drawer-footer .el-button {
     margin-left: 0;
 }
+
+/* Compact desktop workspace: row density comes from structure, not zoom. */
+.main-layout { margin: 16px; gap: 12px; min-height: 0; }
+.folder-aside { border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); }
+.content-wrapper { padding: 0; border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); }
+.toolbar, .list-header { min-height: 48px; padding: 8px 12px; margin: 0; gap: 8px; flex-wrap: nowrap; border-bottom: 1px solid var(--ad-border); }
+.left-tools, .right-tools, .left-filters, .right-actions { gap: 8px; display: flex; align-items: center; min-width: 0; }
+.search-input { width: 190px; }
+.pagination-footer { padding: 8px 12px; margin: 0; min-height: 44px; border-top: 1px solid var(--ad-border); flex-shrink: 0; }
+.ad-table { font-size: 12px; }
+.ad-table :deep(.el-table__cell) { height: 36px; padding: 0; }
+.ad-table :deep(.cell) { line-height: 20px; padding: 0 10px; }
+.ad-table :deep(.el-button) { min-height: 28px; height: 28px; font-size: 12px; }
+.ad-name-button { font: inherit; color: var(--ad-text); font-weight: 500; background: none; border: 0; padding: 0; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-name-button:hover { color: var(--ad-primary); }
+.ad-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.metadata-trigger { color: var(--ad-muted); }
+.list-scroll-area { min-height: 0; overflow: hidden; }
+
+.mobile-case-page, .mobile-scenario-page, .mobile-run-form { font-size: 14px; }
+.mobile-case-page :deep(.el-button), .mobile-scenario-page :deep(.el-button), .mobile-device-check, .mobile-drawer-footer :deep(.el-button) { min-height: 44px; font-size: 14px; }
+.mobile-case-page :deep(input), .mobile-scenario-page :deep(input), .mobile-run-form :deep(input), .mobile-run-form :deep(.el-select__placeholder) { font-size: 16px; }
+.mobile-case-page :deep(.el-tag), .mobile-scenario-page :deep(.el-tag), .mobile-run-form :deep(.el-tag), .mobile-run-form :deep(.el-checkbox__label), .mobile-run-form .run-warning-hint { font-size: 14px; }
+.mobile-status-filter :deep(.el-radio-button__inner) { min-height: 44px; display: flex; align-items: center; font-size: 14px; }
+.mobile-pagination :deep(button), .mobile-pagination :deep(.el-pager li) { min-width: 44px; height: 44px; font-size: 14px; }
+.mobile-page-position { padding: 0 12px; font-size: 14px; color: var(--ad-muted); }
 </style>

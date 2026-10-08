@@ -42,7 +42,7 @@ const resetForm = () => {
 }
 
 const handleSubmit = async () => {
-  if (!formRef.value) return
+  if (!formRef.value || saving.value) return
 
   await formRef.value.validate(async (valid) => {
     if (!valid) return
@@ -65,8 +65,8 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="account-page">
-    <div class="page-header">
+  <div class="account-page ad-page">
+    <div class="page-header ad-page-header">
       <el-button :icon="ArrowLeft" text @click="router.back()">返回</el-button>
       <h2>修改密码</h2>
     </div>
@@ -76,7 +76,7 @@ const handleSubmit = async () => {
         ref="formRef"
         :model="form"
         :rules="rules"
-        label-position="top"
+        label-position="top" scroll-to-error
         class="password-form"
         @keyup.enter="handleSubmit"
       >
@@ -123,8 +123,8 @@ const handleSubmit = async () => {
 .account-page {
   height: 100%;
   overflow: auto;
-  padding: 24px;
-  background: #f2f3f5;
+  padding: 16px;
+  background: var(--ad-bg);
 }
 
 .page-header {
@@ -136,17 +136,17 @@ const handleSubmit = async () => {
 
 .page-header h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
-  color: #1f2933;
+  color: var(--ad-text);
 }
 
 .password-panel {
   max-width: 520px;
-  padding: 24px;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background: #ffffff;
+  padding: 16px;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-panel-radius);
+  background: var(--ad-surface);
 }
 
 .password-form {
@@ -159,4 +159,5 @@ const handleSubmit = async () => {
   gap: 12px;
   margin-top: 8px;
 }
+@media(max-width:760px){.header-actions{flex-wrap:wrap}.page-header h2{font-size:20px}.page-desc,.setting-value,.setting-title,.token-prefix,.token-plaintext{font-size:14px}.token-display{align-items:stretch;flex-direction:column}.table-panel{overflow:auto;flex-shrink:0;min-height:260px}.tokens-page,.admin-page{overflow:auto}.password-panel{padding:16px}.user-cell{flex-wrap:wrap}}
 </style>

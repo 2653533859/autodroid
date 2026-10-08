@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus, Refresh, VideoPlay } from '@element-plus/icons-vue'
@@ -21,6 +21,26 @@ const packages = ref([])
 const runs = ref([])
 const loading = reactive({ page: false, profiles: false, runs: false, submit: false, save: false })
 const dialogVisible = ref(false)
+const profileFormElement = ref(null)
+const activeProfileBranch = ref('')
+const profileAdvancedPanels = ref([])
+const profileBudgetPanels = ref([])
+const revealProfileError = async (message, label, branchKey = '') => {
+  if (branchKey) activeProfileBranch.value = branchKey
+  await nextTick()
+  const fields = [...(profileFormElement.value?.querySelectorAll('.el-form-item') || [])]
+  const field = fields.find(item => item.offsetParent !== null && item.querySelector('.el-form-item__label')?.textContent.includes(label))
+  field?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  field?.querySelector('input, textarea, button')?.focus({ preventScroll: true })
+  ElMessage.warning(message)
+}
+watch(dialogVisible, visible => {
+  if (visible) {
+    activeProfileBranch.value = profileBranchKeys.value[0] || ''
+    profileAdvancedPanels.value = []
+    profileBudgetPanels.value = []
+  }
+})
 const editingId = ref(null)
 const runAdvancedOpen = ref([])
 const profileManagerOpen = ref([])
@@ -278,13 +298,21 @@ const profilePayload = () => ({
 })
 
 const saveProfile = async () => {
+    if (loading.save) return
   if (!profileForm.name.trim() || !profileForm.package_name.trim()) {
-    return ElMessage.warning('请填写配置名称和目标包名')
+    return revealProfileError('请填写配置名称和目标包名', !profileForm.name.trim() ? '配置名称' : '目标应用包名')
   }
   for (const key of profileBranchKeys.value) {
     const branch = profileForm.branches[key]
     if (!branch.prepare_case_id || !branch.entry_case_id || !branch.ready_assertion?.selector?.trim()) {
-      return ElMessage.warning(`请完整配置${branch.name || key}业务线`)
+      return revealProfileError(`请完整配置${branch.name || key}业务线`, !branch.prepare_case_id ? '准备用例' : !branch.entry_case_id ? '进入用例' : '就绪断言 selector', key)
+    }
+  }
+  for (const [field, label] of [['input_rules_text', '输入规则'], ['safety_rules_text', '自定义安全规则'], ['sanitizer_rules_text', '脱敏规则'], ['dynamic_text_patterns_text', '动态文案正则']]) {
+    try { parseJsonArray(profileForm[field], label) }
+    catch (error) {
+      profileAdvancedPanels.value = ['advanced']
+      return revealProfileError(error.message, label)
     }
   }
   loading.save = true
@@ -372,6 +400,7 @@ const bootstrap = async () => {
 }
 
 const startRun = async () => {
+    if (loading.submit) return
   if (!runForm.profile_id || !runForm.device_serial || !runForm.branches.length) {
     return ElMessage.warning('请选择巡检配置、显式设备和至少一条业务线')
   }
@@ -597,16 +626,16 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑巡检配置' : '新建巡检配置'" width="900px" class="inspection-profile-dialog" align-center destroy-on-close>
-      <div class="profile-dialog-scroll">
-      <el-form label-position="top">
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑巡检配置' : '新建巡检配置'" width="min(900px, calc(100vw - 24px))" class="inspection-profile-dialog" align-center destroy-on-close>
+      <div ref="profileFormElement" class="profile-dialog-scroll">
+      <el-form label-position="top" :disabled="loading.save">
         <div class="dialog-grid">
           <el-form-item label="配置名称"><el-input v-model="profileForm.name" /></el-form-item>
           <el-form-item label="目标应用包名"><el-input v-model="profileForm.package_name" /></el-form-item>
         </div>
 
-        <el-tabs>
-          <el-tab-pane v-for="branchKey in profileBranchKeys" :key="branchKey" :label="profileForm.branches[branchKey].name || branchKey">
+        <el-tabs v-model="activeProfileBranch">
+          <el-tab-pane v-for="branchKey in profileBranchKeys" :key="branchKey" :name="branchKey" :label="profileForm.branches[branchKey].name || branchKey">
             <div class="dialog-grid">
               <el-form-item label="业务线名称" v-if="!RESERVED_BRANCH_KEYS.includes(branchKey)">
                 <el-input v-model="profileForm.branches[branchKey].name" placeholder="例如：我的页面" />
@@ -658,7 +687,7 @@ onBeforeUnmount(() => {
           <el-button link type="primary" :icon="Plus" @click="addPageBranch">新增单页业务线</el-button>
         </div>
 
-        <el-divider content-position="left">预算与监控</el-divider>
+        <el-collapse v-model="profileBudgetPanels" class="budget-options"><el-collapse-item name="budget" title="预算与监控">
         <div class="budget-grid">
           <el-form-item label="默认时长（分钟）">
             <el-input-number
@@ -687,7 +716,8 @@ onBeforeUnmount(() => {
           <el-checkbox v-model="profileForm.enable_perfetto_trace" :disabled="!profileForm.enable_jank_frame_monitor">性能追踪（Perfetto）</el-checkbox>
         </el-space>
 
-        <el-collapse class="advanced">
+        </el-collapse-item></el-collapse>
+        <el-collapse v-model="profileAdvancedPanels" class="advanced">
           <el-collapse-item title="高级规则（JSON 数组）" name="advanced">
             <el-alert title="输入规则只记录规则名称、变量和长度；密码请使用已标记为敏感的环境变量。" type="info" :closable="false" />
             <div class="json-grid">
@@ -709,16 +739,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.inspection-page { height: 100%; overflow: auto; background: #f2f3f5; }
+.inspection-page { height: 100%; overflow: auto; background: var(--ad-bg); }
 .content { min-height: 100%; padding: 12px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; }
 .header, .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.title { font-size: 17px; font-weight: 700; color: #303133; }
+.title { font-size: 20px; font-weight: 600; color: var(--ad-text); }
 .title.small { font-size: 15px; }
-.subtitle { margin-top: 3px; font-size: 12px; color: #909399; }
-.strong { font-weight: 600; color: #303133; }
+.subtitle { margin-top: 3px; font-size: 12px; color: var(--ad-muted); }
+.strong { font-weight: 600; color: var(--ad-text); }
 .run-metric { min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1.3; }
-.run-metric strong { color: #303133; font-size: 13px; }
-.run-metric span { overflow: hidden; color: #909399; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.run-metric strong { color: var(--ad-text); font-size: 13px; }
+.run-metric span { overflow: hidden; color: var(--ad-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .run-grid, .run-secondary-grid, .dialog-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
 .run-grid { grid-template-columns: minmax(190px, 1.1fr) minmax(210px, 1.15fr) minmax(150px, .8fr) minmax(250px, 1.35fr) auto; align-items: end; }
 .run-grid :deep(.el-select), .run-secondary-grid :deep(.el-select), .dialog-grid :deep(.el-select) { width: 100%; }
@@ -728,30 +758,30 @@ onBeforeUnmount(() => {
 .duration-control { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .duration-control :deep(.el-segmented) { width: 100%; }
 .duration-preset-select { display: none; width: 100%; }
-.duration-custom { display: flex; align-items: center; gap: 8px; color: #606266; }
+.duration-custom { display: flex; align-items: center; gap: 8px; color: var(--ad-muted); }
 .duration-custom :deep(.el-input-number) { width: 120px; }
-.duration-allocation { font-size: 12px; color: #909399; }
-.launch-more { border-top: 1px solid #ebeef5; border-bottom: 0; }
+.duration-allocation { font-size: 12px; color: var(--ad-muted); }
+.launch-more { border-top: 1px solid var(--ad-border); border-bottom: 0; }
 .launch-more :deep(.el-collapse-item__header) { min-height: 42px; height: auto; border-bottom: 0; }
 .launch-more :deep(.el-collapse-item__wrap) { border-bottom: 0; }
-.launch-more-title { min-width: 0; display: flex; align-items: baseline; gap: 10px; }
-.launch-more-title strong { color: #303133; font-size: 13px; }
-.launch-more-title span { overflow: hidden; color: #909399; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.safety-note { margin-bottom: 4px; padding: 8px 10px; color: #8a5a00; font-size: 12px; line-height: 1.45; border-left: 3px solid #e6a23c; background: #fdf6ec; }
+.launch-more-title { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.launch-more-title strong { color: var(--ad-text); font-size: 13px; }
+.launch-more-title span { overflow: hidden; color: var(--ad-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.safety-note { margin-bottom: 4px; padding: 8px 10px; color: var(--ad-warning); font-size: 12px; line-height: 1.45; border-left: 3px solid var(--ad-warning); background: color-mix(in srgb, var(--ad-warning) 7%, white); }
 .workspace-sections { display: flex; flex-direction: column; gap: 12px; }
 .recent-panel { min-height: 238px; }
 .recent-panel :deep(.el-card__body) { padding-top: 8px; }
 .recent-runs-table :deep(.el-table__row) { cursor: pointer; }
 .run-status-cell { display: flex; align-items: flex-start; flex-direction: column; gap: 2px; }
-.profile-manager { padding: 0 16px; border: 1px solid #dcdfe6; background: #fff; }
+.profile-manager { padding: 0 16px; border: 1px solid var(--ad-border); background: var(--ad-surface); }
 .profile-manager :deep(.el-collapse-item__header) { min-height: 54px; height: auto; border-bottom: 0; }
 .profile-manager :deep(.el-collapse-item__wrap) { border-bottom: 0; }
 .profile-manager-title { min-width: 0; width: 100%; padding-right: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .profile-manager-title > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.profile-manager-title strong { color: #303133; font-size: 14px; }
-.profile-manager-title span { color: #909399; font-size: 12px; }
+.profile-manager-title strong { color: var(--ad-text); font-size: 13px; }
+.profile-manager-title span { color: var(--ad-muted); font-size: 12px; }
 .budget-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; }
-.scope-note { margin: 4px 0 8px; padding: 8px 10px; color: #606266; font-size: 12px; line-height: 1.45; border-left: 3px solid #409eff; background: #ecf5ff; }
+.scope-note { margin: 4px 0 8px; padding: 8px 10px; color: var(--ad-muted); font-size: 12px; line-height: 1.45; border-left: 3px solid var(--ad-primary); background: var(--ad-primary-soft); }
 .branch-actions { display: flex; justify-content: flex-end; }
 .add-branch-row { margin: 4px 0 8px; }
 .advanced { margin-top: 18px; }
@@ -775,10 +805,17 @@ onBeforeUnmount(() => {
 :global(.inspection-profile-dialog) { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); margin: 0; display: flex; flex-direction: column; }
 :global(.inspection-profile-dialog .el-dialog__header), :global(.inspection-profile-dialog .el-dialog__footer) { flex-shrink: 0; }
 :global(.inspection-profile-dialog .el-dialog__body) { min-height: 0; display: flex; overflow: hidden; }
-:global(.inspection-profile-dialog .el-dialog__footer) { position: sticky; z-index: 1; bottom: 0; border-top: 1px solid #ebeef5; background: #fff; }
+:global(.inspection-profile-dialog .el-dialog__footer) { position: sticky; z-index: 1; bottom: 0; border-top: 1px solid var(--ad-border); background: var(--ad-surface); }
 
 @media (max-height: 620px) {
   .content { padding-top: 8px; gap: 8px; }
   :global(.inspection-profile-dialog) { max-height: calc(100dvh - 12px); }
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

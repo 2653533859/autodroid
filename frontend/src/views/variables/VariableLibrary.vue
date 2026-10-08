@@ -8,6 +8,7 @@ import api from '@/api'
 
 // ==================== 环境状态 ====================
 const environments = ref([])
+const environmentsVisible = ref(true), savingEnv = ref(false), savingVar = ref(false)
 const activeEnvId = ref(null)
 const envLoading = ref(false)
 
@@ -78,10 +79,12 @@ const openEnvDialog = (env = null) => {
 }
 
 const submitEnv = async () => {
+  if (savingEnv.value) return
   if (!envForm.value.name.trim()) {
     ElMessage.warning('请输入环境名称')
     return
   }
+  savingEnv.value = true
   try {
     if (editingEnv.value) {
       await api.updateEnvironment(editingEnv.value.id, envForm.value)
@@ -94,7 +97,7 @@ const submitEnv = async () => {
     await fetchEnvironments()
   } catch (e) {
     ElMessage.error(e.response?.data?.detail || '操作失败')
-  }
+  } finally { savingEnv.value = false }
 }
 
 const handleDeleteEnv = async (env) => {
@@ -139,9 +142,11 @@ const openVarDialog = (v = null) => {
 }
 
 const submitVar = async () => {
+  if (savingVar.value) return
   if (varFormRef.value) {
     try { await varFormRef.value.validate() } catch { return }
   }
+  savingVar.value = true
   try {
     if (editingVar.value) {
       await api.updateVariable(editingVar.value.id, varForm.value)
@@ -154,7 +159,7 @@ const submitVar = async () => {
     await fetchVariables()
   } catch (e) {
     ElMessage.error(e.response?.data?.detail || '操作失败')
-  }
+  } finally { savingVar.value = false }
 }
 
 const handleDeleteVar = async (v) => {
@@ -192,10 +197,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="variable-library">
+  <div class="variable-library ad-page">
     <el-container class="main-container">
       <!-- ========== 左侧：环境导航 ========== -->
-      <el-aside width="260px" class="env-aside">
+      <el-aside v-if="environmentsVisible" width="200px" class="env-aside">
         <div class="aside-header">
           <span class="aside-title">环境列表</span>
           <el-button type="primary" :icon="Plus" size="small" @click="openEnvDialog()">新增</el-button>
@@ -205,7 +210,7 @@ onMounted(() => {
           <div
             v-for="env in environments"
             :key="env.id"
-            class="env-item"
+            class="env-item" role="button" tabindex="0" :aria-pressed="activeEnvId===env.id" @keydown.enter.self="handleSelectEnv(env.id)" @keydown.space.self.prevent="handleSelectEnv(env.id)"
             :class="{ active: activeEnvId === env.id }"
             @click="handleSelectEnv(env.id)"
           >
@@ -214,8 +219,8 @@ onMounted(() => {
               <span class="env-name">{{ env.name }}</span>
             </div>
             <div class="env-item-actions" @click.stop>
-              <el-button :icon="Edit" size="small" link @click="openEnvDialog(env)" />
-              <el-button :icon="Delete" size="small" link type="danger" @click="handleDeleteEnv(env)" />
+              <el-button :icon="Edit" size="small" link aria-label="编辑环境" @click="openEnvDialog(env)" />
+              <el-button :icon="Delete" size="small" link type="danger" aria-label="删除环境" @click="handleDeleteEnv(env)" />
             </div>
           </div>
           <el-empty v-if="!envLoading && environments.length === 0" description="暂无环境，请新建" :image-size="60" />
@@ -225,9 +230,9 @@ onMounted(() => {
       <!-- ========== 右侧：变量表格 ========== -->
       <el-main class="var-main">
         <!-- 顶部工具栏 -->
-        <div class="var-toolbar">
+        <div class="var-toolbar ad-toolbar">
           <div class="toolbar-left">
-            <el-icon :size="22" color="#409eff"><Key /></el-icon>
+            <el-button :icon="FolderOpened" aria-label="切换环境列表" :aria-expanded="environmentsVisible" @click="environmentsVisible=!environmentsVisible" />
             <h2 class="page-title">{{ activeEnv?.name || '全局变量库' }}</h2>
             <el-tag v-if="activeEnv" type="info" size="small" style="margin-left: 12px;">
               {{ variables.length }} 个变量
@@ -254,16 +259,16 @@ onMounted(() => {
           v-if="activeEnvId"
           :data="filteredVariables"
           v-loading="varLoading"
-          stripe
+          class="ad-table"
           style="width: 100%"
           empty-text="暂无变量，请点击「新增变量」按钮"
         >
-          <el-table-column prop="key" label="Key" min-width="180">
+          <el-table-column prop="key" label="Key" min-width="130">
             <template #default="{ row }">
-              <span class="var-key">{{ row.key }}</span>
+              <el-button link class="var-key ad-name-button" @click="openVarDialog(row)">{{ row.key }}</el-button>
             </template>
           </el-table-column>
-          <el-table-column label="Value" min-width="240">
+          <el-table-column label="Value" min-width="130">
             <template #default="{ row }">
               <div class="value-cell">
                 <span v-if="row.is_secret && !revealedIds.has(row.id)" class="secret-mask">******</span>
@@ -274,7 +279,7 @@ onMounted(() => {
                   size="small"
                   link
                   @click="toggleReveal(row.id)"
-                  class="reveal-btn"
+                  class="reveal-btn" :aria-label="revealedIds.has(row.id) ? '隐藏变量值' : '显示变量值'"
                 />
               </div>
             </template>
@@ -286,13 +291,13 @@ onMounted(() => {
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="description" label="描述" min-width="130" show-overflow-tooltip />
           <el-table-column label="引用方式" width="180">
             <template #default="{ row }">
               <el-tag type="success" size="small" effect="plain" class="ref-tag">{{ refFormat(row.key) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="150" align="center" fixed="right">
+          <el-table-column label="操作" width="112" align="center" fixed="right">
             <template #default="{ row }">
               <div class="var-actions">
                 <el-button :icon="Edit" size="small" link type="primary" @click="openVarDialog(row)">编辑</el-button>
@@ -303,18 +308,18 @@ onMounted(() => {
         </el-table>
 
         <!-- 未选中环境 -->
-        <el-empty v-else description="请在左侧选择或新建一个环境" :image-size="120" style="margin-top: 80px;" />
+        <el-empty v-else description="请在左侧选择或新建一个环境" :image-size="120" class="choose-environment" />
       </el-main>
     </el-container>
 
     <!-- ========== 环境弹窗 ========== -->
-    <el-dialog
+    <el-dialog class="ad-dialog"
       v-model="envDialogVisible"
       :title="editingEnv ? '编辑环境' : '新建环境'"
-      width="480px"
+      width="min(480px, calc(100vw - 32px))"
       destroy-on-close
     >
-      <el-form :model="envForm" label-width="80px">
+      <el-form :model="envForm" label-position="top" scroll-to-error>
         <el-form-item label="环境名称" required>
           <el-input v-model="envForm.name" placeholder="例如：开发环境 / 生产环境" maxlength="50" />
         </el-form-item>
@@ -324,18 +329,18 @@ onMounted(() => {
       </el-form>
       <template #footer>
         <el-button @click="envDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitEnv">确定</el-button>
+        <el-button type="primary" :loading="savingEnv" @click="submitEnv">确定</el-button>
       </template>
     </el-dialog>
 
     <!-- ========== 变量弹窗 ========== -->
-    <el-dialog
+    <el-dialog class="ad-dialog"
       v-model="varDialogVisible"
       :title="editingVar ? '编辑变量' : '新增变量'"
-      width="520px"
+      width="min(520px, calc(100vw - 32px))"
       destroy-on-close
     >
-      <el-form ref="varFormRef" :model="varForm" :rules="varFormRules" label-width="80px">
+      <el-form ref="varFormRef" :model="varForm" :rules="varFormRules" label-position="top" scroll-to-error>
         <el-form-item label="Key" prop="key">
           <el-input
             v-model="varForm.key"
@@ -357,17 +362,19 @@ onMounted(() => {
       </el-form>
       <template #footer>
         <el-button @click="varDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitVar">确定</el-button>
+        <el-button type="primary" :loading="savingVar" @click="submitVar">确定</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
+.variable-library{padding:0}
+
 .variable-library {
   height: 100%;
   overflow: hidden;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
+  background: var(--ad-bg);
 }
 
 .main-container {
@@ -376,8 +383,8 @@ onMounted(() => {
 
 /* ========== 左侧环境面板 ========== */
 .env-aside {
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  background: var(--ad-surface);
+  border-right: 1px solid var(--ad-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -388,14 +395,14 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 16px 12px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--ad-border);
   flex-shrink: 0;
 }
 
 .aside-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .env-list {
@@ -408,20 +415,20 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  padding: 6px 8px;
   margin-bottom: 4px;
-  border-radius: 8px;
+  border-radius: var(--ad-panel-radius);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .env-item:hover {
-  background: #f5f7fa;
+  background: var(--ad-bg);
 }
 
 .env-item.active {
-  background: #ecf5ff;
-  border: 1px solid #b3d8ff;
+  background: var(--ad-primary-soft);
+  border: 1px solid var(--ad-primary-soft);
 }
 
 .env-item:not(.active) {
@@ -438,13 +445,13 @@ onMounted(() => {
 }
 
 .env-icon {
-  color: #409eff;
+  color: var(--ad-primary);
   flex-shrink: 0;
 }
 
 .env-name {
   font-size: 13px;
-  color: #303133;
+  color: var(--ad-text);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -454,7 +461,7 @@ onMounted(() => {
 .env-item-actions {
   display: flex;
   gap: 2px;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s;
   flex-shrink: 0;
 }
@@ -465,7 +472,7 @@ onMounted(() => {
 
 /* ========== 右侧变量区域 ========== */
 .var-main {
-  padding: 20px 24px;
+  padding: 16px;
   overflow-y: auto;
 }
 
@@ -473,11 +480,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding: 16px 20px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 12px;
+  padding: 0;
+  background: var(--ad-surface);
+  border-radius: var(--ad-panel-radius);
+  box-shadow: none;
 }
 
 .toolbar-left {
@@ -494,9 +501,9 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #303133;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ad-text);
 }
 
 /* ========== 表格样式 ========== */
@@ -504,7 +511,7 @@ onMounted(() => {
   font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
   font-size: 13px;
   font-weight: 600;
-  color: #409eff;
+  color: var(--ad-primary);
 }
 
 .value-cell {
@@ -516,13 +523,13 @@ onMounted(() => {
 .var-value {
   font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
   font-size: 13px;
-  color: #303133;
-  word-break: break-all;
+  color: var(--ad-text);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
 }
 
 .secret-mask {
   font-size: 13px;
-  color: #909399;
+  color: var(--ad-muted);
   letter-spacing: 2px;
 }
 
@@ -550,7 +557,9 @@ onMounted(() => {
 /* ========== 弹窗辅助 ========== */
 .switch-hint {
   font-size: 12px;
-  color: #909399;
+  color: var(--ad-muted);
   margin-left: 12px;
 }
+.var-main{min-width:0}.var-toolbar{background:transparent;gap:12px;flex-wrap:wrap}.value-cell{min-width:0}.env-item:focus-visible{outline:2px solid var(--ad-primary);outline-offset:1px}.choose-environment{margin:32px auto}.var-key{font-size:12px}.env-aside{background:var(--ad-sidebar)}
+@media(max-width:760px){.main-container{flex-direction:column}.env-aside{width:100%!important;max-height:180px;flex-shrink:0;border-right:0;border-bottom:1px solid var(--ad-border)}.var-main{padding:12px}.toolbar-right{width:100%;flex-wrap:wrap}.toolbar-right .el-input{width:auto!important;min-width:120px;flex:1}.env-name,.aside-title,.var-value,.secret-mask,.var-key,.switch-hint{font-size:14px}.env-item{min-height:44px}.var-main .el-table{min-height:240px}}
 </style>

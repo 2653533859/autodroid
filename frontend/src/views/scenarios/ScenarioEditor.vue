@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { VueDraggable } from 'vue-draggable-plus'
 import api from '@/api'
+import { describeRunSubmission } from '@/utils/uiRunPresentation'
 import { ElMessage } from 'element-plus'
 import {
   VideoPlay, Delete, Rank, Document,
@@ -18,7 +19,8 @@ const route = useRoute()
 const router = useRouter()
 
 // Data
-const scenarioId = computed(() => route.params.id)
+const createdScenarioId = ref(null)
+const scenarioId = computed(() => route.params.id || createdScenarioId.value)
 const currentScenario = ref({ name: '' })
 const caseLibrary = ref([])
 const scenarioSteps = ref([])
@@ -28,6 +30,9 @@ const caseTreeRef = ref(null)
 
 const loading = ref(false)
 const running = ref(false)
+const runPhase = ref('')
+const runBusy = computed(() => Boolean(runPhase.value) || isSaving.value)
+const runLabel = computed(() => ({ saving: '保存中', prechecking: '预检中', submitting: '启动中' }[runPhase.value] || (running.value ? '终止' : (!scenarioId.value || isDirty.value ? '保存并运行' : '运行'))))
 const activeRun = ref(null)
 const terminatingRun = ref(false)
 let activeRunTimer = null
@@ -52,7 +57,6 @@ function updateSnapshot() {
 }
 
 const isDirty = computed(() => {
-    if (isSaving.value) return false
     if (savedSnapshot.value === null) return false
     return takeSnapshot() !== savedSnapshot.value
 })
@@ -178,46 +182,53 @@ const fetchScenarioSteps = async () => {
 }
 
 const saveSteps = async () => {
+  if (isSaving.value) return false
   if (!currentScenario.value.name.trim()) {
-      ElMessage.warning('请输入场景名称')
-      return
+    ElMessage.warning('请输入场景名称')
+    return false
   }
-
+  const draftName = currentScenario.value.name
+  const submittedSnapshot = takeSnapshot()
+  const payload = scenarioSteps.value.map((step, index) => ({ case_id: step.id, order: index + 1, alias: step.alias || step.name }))
   loading.value = true
   isSaving.value = true
   try {
     let targetId = scenarioId.value
-
-    // Create if new
     if (!targetId) {
-         const createPayload = { name: currentScenario.value.name }
-         const folderId = route.query.folder_id ? Number(route.query.folder_id) : null
-         if (folderId) {
-             createPayload.folder_id = folderId
-         }
-         const res = await api.createScenario(createPayload)
-         targetId = res.data.id
-         await router.replace(`/ui/scenarios/${targetId}/edit`)
-         ElMessage.success('场景创建成功')
+      const createPayload = { name: draftName }
+      const folderId = route.query.folder_id ? Number(route.query.folder_id) : null
+      if (folderId) createPayload.folder_id = folderId
+      const res = await api.createScenario(createPayload)
+      targetId = res.data.id
+      if (!targetId) throw new Error('服务未返回场景 ID')
+      createdScenarioId.value = targetId
     } else {
-         await api.updateScenario(targetId, { name: currentScenario.value.name })
+      await api.updateScenario(targetId, { name: draftName })
     }
-
-    const payload = scenarioSteps.value.map((step, index) => ({
-      case_id: step.id,
-      order: index + 1,
-      alias: step.alias || step.name
-    }))
-
     await api.updateScenarioSteps(targetId, payload)
-    updateSnapshot()
+    savedSnapshot.value = submittedSnapshot
     ElMessage.success('保存成功')
+    return true
   } catch (err) {
-    ElMessage.error('保存失败: ' + err.message)
+    savedSnapshot.value = '__incomplete_save__'
+    ElMessage.error('保存未完成，草稿已保留，请重试: ' + err.message)
+    return false
   } finally {
     isSaving.value = false
     loading.value = false
   }
+}
+
+const ensureSaved = async () => {
+  if (!scenarioId.value || isDirty.value) {
+    runPhase.value = 'saving'
+    if (!await saveSteps()) return false
+    if (isDirty.value) {
+      ElMessage.warning('保存期间内容发生变化，请再次保存并运行')
+      return false
+    }
+  }
+  return true
 }
 
 const summarizeScenarioPrecheckFailure = (payload) => {
@@ -249,9 +260,9 @@ const summarizeHttpDetail = (err) => {
   return err?.message || '请求失败'
 }
 
-const precheckScenarioOnDevice = async (serial) => {
+const precheckScenarioOnDevice = async (serial, selectedEnvironment = envId.value, targetId = scenarioId.value) => {
   try {
-    const { data } = await api.precheckScenario(scenarioId.value, envId.value, serial)
+    const { data } = await api.precheckScenario(targetId, selectedEnvironment, serial)
     if (data?.ok) return { ok: true }
     return { ok: false, reason: summarizeScenarioPrecheckFailure(data) }
   } catch (err) {
@@ -260,30 +271,33 @@ const precheckScenarioOnDevice = async (serial) => {
 }
 
 const runScenario = async (selectedSerial) => {
+  if (runBusy.value) return false
   if (running.value) {
     await terminateActiveRun()
     return false
   }
-  await saveSteps()
-  
-  // If save failed or still no ID, stop
-  if (!scenarioId.value) return false
+  const selectedEnvironment = envId.value
+  runPhase.value = 'saving'
+  try {
+  if (!await ensureSaved()) return false
+  const targetId = scenarioId.value
+  runPhase.value = 'prechecking'
 
   if (selectedSerial) {
-    const check = await precheckScenarioOnDevice(selectedSerial)
+    const check = await precheckScenarioOnDevice(selectedSerial, selectedEnvironment, targetId)
     if (!check.ok) {
       ElMessage.error(`运行前预检失败: ${check.reason}`)
       return false
     }
   }
 
+  runPhase.value = 'submitting'
   running.value = true
   activeRun.value = {
     kind: 'scenario',
-    target_id: Number(scenarioId.value),
+    target_id: Number(targetId),
     device_serials: selectedSerial ? [selectedSerial] : []
   }
-  startActiveRunPolling()
   if (logConsoleRef.value) {
       logConsoleRef.value.clear()
   }
@@ -291,10 +305,10 @@ const runScenario = async (selectedSerial) => {
   // WebSocket Connection
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   
-  let wsUrl = `${protocol}//${window.location.host}/api/scenarios/ws/run/${scenarioId.value}`
+  let wsUrl = `${protocol}//${window.location.host}/api/scenarios/ws/run/${targetId}`
   const queryParams = []
-  if (envId.value) queryParams.push(`env_id=${envId.value}`)
-  if (selectedSerial) queryParams.push(`device_serial=${selectedSerial}`)
+  if (selectedEnvironment) queryParams.push(`env_id=${encodeURIComponent(selectedEnvironment)}`)
+  if (selectedSerial) queryParams.push(`device_serial=${encodeURIComponent(selectedSerial)}`)
   
   if (queryParams.length > 0) {
       wsUrl += `?${queryParams.join('&')}`
@@ -326,9 +340,10 @@ const runScenario = async (selectedSerial) => {
                    })
                }
           } else if (data.type === 'run_start') {
+              startActiveRunPolling()
               activeRun.value = {
                   kind: 'scenario',
-                  target_id: Number(scenarioId.value),
+                  target_id: Number(targetId),
                   batch_id: data.batch_id,
                   execution_ids: data.execution_id ? [data.execution_id] : [],
                   device_serials: data.device_serial ? [data.device_serial] : []
@@ -375,6 +390,15 @@ const runScenario = async (selectedSerial) => {
       }
   }
   return true
+  } catch (err) {
+    running.value = false
+    activeRun.value = null
+    stopActiveRunPolling()
+    ElMessage.error('启动失败: ' + summarizeHttpDetail(err))
+    return false
+  } finally {
+    runPhase.value = ''
+  }
 }
 
 const selectedStep = ref(null)
@@ -385,12 +409,9 @@ const multiRunForm = ref({
 })
 
 const submitMultiRun = async () => {
+  if (runBusy.value || running.value) return
   if (multiRunForm.value.deviceSerials.length === 0) {
     ElMessage.warning('请至少选择一台设备')
-    return
-  }
-  if (!scenarioId.value) {
-    ElMessage.warning('请先保存场景')
     return
   }
 
@@ -402,11 +423,17 @@ const submitMultiRun = async () => {
   }
 
   // Multiple Selection: Background Batch Execution
+  const selectedEnvironment = envId.value
+  const selectedDevices = [...multiRunForm.value.deviceSerials]
+  runPhase.value = 'saving'
   try {
+    if (!await ensureSaved()) return
+    const targetId = scenarioId.value
+    runPhase.value = 'prechecking'
     const runnable = []
     const blocked = []
-    for (const serial of multiRunForm.value.deviceSerials) {
-      const check = await precheckScenarioOnDevice(serial)
+    for (const serial of selectedDevices) {
+      const check = await precheckScenarioOnDevice(serial, selectedEnvironment, targetId)
       if (check.ok) runnable.push(serial)
       else blocked.push({ device_serial: serial, reason: check.reason })
     }
@@ -417,14 +444,16 @@ const submitMultiRun = async () => {
       return
     }
 
-    const { data } = await api.runScenario(scenarioId.value, envId.value, runnable)
+    runPhase.value = 'submitting'
+    const { data } = await api.runScenario(targetId, selectedEnvironment, runnable)
     const backendBlocked = Array.isArray(data?.blocked_prechecks) ? data.blocked_prechecks : []
     const allBlocked = blocked.concat(backendBlocked)
+    const submissionText = describeRunSubmission(data, runnable.length)
     if (allBlocked.length > 0) {
       const first = allBlocked[0]
-      ElMessage.warning(`已在 ${runnable.length} 台设备启动；${allBlocked.length} 台预检失败（示例：${first.device_serial} - ${first.reason}）`)
+      ElMessage.warning(`${submissionText}；${allBlocked.length} 台预检失败（示例：${first.device_serial} - ${first.reason}）`)
     } else {
-      ElMessage.success(`后台已开始在 ${runnable.length} 台设备上执行场景`)
+      ElMessage.success(submissionText)
     }
     activeRun.value = {
       kind: 'scenario',
@@ -438,16 +467,15 @@ const submitMultiRun = async () => {
     runDialogVisible.value = false
   } catch (err) {
     ElMessage.error('启动批量执行失败: ' + summarizeHttpDetail(err))
+  } finally {
+    runPhase.value = ''
   }
 }
 
 const openRunDialog = async () => {
+  if (runBusy.value || terminatingRun.value) return
   if (running.value) {
     await terminateActiveRun()
-    return
-  }
-  if (!scenarioId.value) {
-    ElMessage.warning('请先保存场景')
     return
   }
   if (scenarioSteps.value.length === 0) {
@@ -596,22 +624,20 @@ const getStepTitle = (step) => {
 
 <template>
   <el-container class="scenario-layout">
-    <!-- Global Header is now in App.vue -->
+    <header class="editor-header">
+      <el-button text :icon="ArrowLeft" aria-label="返回场景列表" @click="goBack" />
+      <el-input v-model="currentScenario.name" class="scenario-name-input" placeholder="请输入场景名称" :disabled="runBusy" aria-label="场景名称" />
+      <span class="save-state" role="status">{{ isSaving ? '保存中…' : isDirty ? '未保存' : scenarioId ? '已保存' : '新场景' }}</span>
+      <div class="editor-actions">
+        <el-select v-model="envId" placeholder="运行环境" :disabled="runBusy" class="environment-select" aria-label="运行环境"><el-option v-for="env in environments" :key="env.id" :label="env.name" :value="env.id" /></el-select>
+        <el-button :icon="Upload" @click="saveSteps" :loading="isSaving" :disabled="runBusy && !isSaving">保存</el-button>
+        <el-button :type="running ? 'danger' : 'primary'" :icon="running ? CircleClose : VideoPlay" @click="openRunDialog" :disabled="runBusy || terminatingRun">{{ runLabel }}</el-button>
+      </div>
+    </header>
     <el-container class="scenario-builder">
     
     <!-- Left: Case Library -->
-    <el-aside width="300px" class="pane left-pane">
-        <!-- New Header Area in Left Pane -->
-        <div class="left-header">
-             <el-button link :icon="ArrowLeft" @click="goBack" class="back-btn" />
-             <el-input 
-                 v-model="currentScenario.name" 
-                 class="scenario-name-input" 
-                 placeholder="请输入场景名称" 
-                 clearable
-             />
-        </div>
-        
+    <el-aside width="224px" class="pane left-pane">
         <div class="pane-header">
             <span class="title">用例库 (点击添加)</span>
         </div>
@@ -649,30 +675,6 @@ const getStepTitle = (step) => {
                 <div class="header-left">
                         <span class="title">场景编排</span>
                         <el-tag v-if="scenarioSteps.length > 0" effect="plain" class="scenario-tag">{{ scenarioSteps.length }} 步骤</el-tag>
-                </div>
-                <div class="actions" style="display: flex; align-items: center;">
-                    <el-select
-                      v-model="envId"
-                      placeholder="运行环境"
-                      style="width: 110px; margin-right: 10px;"
-                    >
-                      <el-option
-                        v-for="env in environments"
-                        :key="env.id"
-                        :label="env.name"
-                        :value="env.id"
-                      />
-                    </el-select>
-                    <el-button
-                      :type="running ? 'danger' : 'success'"
-                      :icon="running ? CircleClose : VideoPlay"
-                      @click="openRunDialog"
-                      :disabled="terminatingRun"
-                      style="margin-right: 12px"
-                    >
-                      {{ running ? '终止' : '运行' }}
-                    </el-button>
-                    <el-button type="primary" :icon="Upload" @click="saveSteps" :loading="loading">保存</el-button>
                 </div>
             </div>
             
@@ -729,7 +731,7 @@ const getStepTitle = (step) => {
     </el-main>
 
     <!-- Right: Case Preview -->
-    <el-aside width="350px" class="pane right-pane">
+    <el-aside width="300px" class="pane right-pane">
          <div class="pane-header">
             <span class="title">用例预览</span>
          </div>
@@ -833,7 +835,7 @@ const getStepTitle = (step) => {
     <el-dialog
       v-model="runDialogVisible"
       title="选择多设备执行"
-      width="400px"
+      width="400px" :close-on-click-modal="!runBusy" :close-on-press-escape="!runBusy" :show-close="!runBusy"
     >
       <el-form v-loading="devicesLoading" :model="multiRunForm" label-width="100px">
         <el-form-item label="设备列表">
@@ -843,7 +845,7 @@ const getStepTitle = (step) => {
             multiple
             collapse-tags
             collapse-tags-tooltip
-            :disabled="devicesLoading"
+            :disabled="devicesLoading || runBusy"
             style="width: 100%"
           >
             <el-option
@@ -857,7 +859,7 @@ const getStepTitle = (step) => {
                 <span>{{ d.custom_name || d.market_name || d.model || d.serial }}</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <el-tag :type="statusTagType(d.status)" size="small">{{ statusLabel(d.status) }}</el-tag>
-                  <span v-if="deviceUnavailableReason(d)" style="font-size: 12px; color: #e6a23c;">
+                  <span v-if="deviceUnavailableReason(d)" style="font-size: 12px; color: var(--ad-warning);">
                     {{ deviceUnavailableReason(d) }}
                   </span>
                 </div>
@@ -871,8 +873,8 @@ const getStepTitle = (step) => {
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="runDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="devicesLoading" :disabled="devicesLoading" @click="submitMultiRun">确定执行</el-button>
+          <el-button :disabled="runBusy" @click="runDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="devicesLoading || runBusy" :disabled="devicesLoading || runBusy" @click="submitMultiRun">{{ runLabel }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -885,35 +887,35 @@ const getStepTitle = (step) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f2f3f5;
+  background: var(--ad-bg);
   overflow: hidden;
 }
 
 .run-warning-hint {
   margin-top: 6px;
   font-size: 12px;
-  color: #e6a23c;
+  color: var(--ad-warning);
 }
 
 /* app-header styles removed */
 
 .left-header {
-    background: #fff;
+    background: var(--ad-surface);
     height: 50px;
     display: flex;
     align-items: center;
     padding: 0 20px;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--ad-border);
     gap: 10px;
 }
 
 .back-btn {
     font-size: 20px;
-    color: #606266;
+    color: var(--ad-muted);
     padding: 0;
 }
 .back-btn:hover {
-    color: #409eff;
+    color: var(--ad-primary);
 }
 
 .scenario-name-input {
@@ -929,7 +931,7 @@ const getStepTitle = (step) => {
 }
 
 .scenario-name-input :deep(.el-input__inner) {
-    color: #303133;
+    color: var(--ad-text);
     font-weight: bold;
 }
 
@@ -948,7 +950,7 @@ const getStepTitle = (step) => {
 }
 
 .pane {
-    background: #fff;
+    background: var(--ad-surface);
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -980,22 +982,22 @@ const getStepTitle = (step) => {
   justify-content: space-between;
   align-items: center;
   padding: 0 20px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--ad-border);
   height: 50px;
   box-sizing: border-box;
-  background-color: #fafafa;
+  background-color: var(--ad-bg);
   flex-shrink: 0;
 }
 
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .search-box {
   padding: 10px 12px;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 1px solid var(--ad-bg);
 }
 
 .list-content {
@@ -1017,17 +1019,17 @@ const getStepTitle = (step) => {
 }
 
 .case-tree-node.is-case:hover .node-label {
-    color: #409eff;
+    color: var(--ad-primary);
 }
 
 .node-folder-icon {
-    color: #e6a23c;
+    color: var(--ad-warning);
     margin-right: 5px;
     flex-shrink: 0;
 }
 
 .node-case-icon {
-    color: #909399;
+    color: var(--ad-muted);
     margin-right: 5px;
     flex-shrink: 0;
 }
@@ -1057,11 +1059,11 @@ const getStepTitle = (step) => {
 .step-list-header {
     display: flex;
     padding: 8px 16px;
-    background: #f5f7fa;
-    color: #909399;
+    background: var(--ad-bg);
+    color: var(--ad-muted);
     font-size: 12px;
     font-weight: bold;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--ad-border);
     margin-bottom: 10px;
 }
 
@@ -1074,25 +1076,25 @@ const getStepTitle = (step) => {
     align-items: center;
     padding: 8px 16px;
     margin-bottom: 8px; /* Distinct separation */
-    border: 1px solid #e4e7ed; /* Full border */
+    border: 1px solid var(--ad-border); /* Full border */
     border-radius: 4px;
-    background: #fff;
+    background: var(--ad-surface);
     transition: all 0.2s;
     cursor: pointer;
 }
 .step-item:hover { 
-    background: #fafafa;
-    border-color: #c0c4cc;
+    background: var(--ad-bg);
+    border-color: var(--ad-muted);
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 .step-item.active {
-    border-color: #409eff;
-    background-color: #ecf5ff;
+    border-color: var(--ad-primary);
+    background-color: var(--ad-primary-soft);
     box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
 }
 
-.col-idx { width: 40px; display: flex; align-items: center; gap: 5px; color: #c0c4cc; cursor: grab; }
-.col-name { flex: 2; display: flex; align-items: center; gap: 8px; font-weight: 500; color: #303133; }
+.col-idx { width: 40px; display: flex; align-items: center; gap: 5px; color: var(--ad-muted); cursor: grab; }
+.col-name { flex: 2; display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--ad-text); }
 .col-alias { flex: 1; padding-right: 10px; }
 .col-action { width: 40px; text-align: center; }
 
@@ -1117,11 +1119,11 @@ const getStepTitle = (step) => {
 }
 .info-row .label {
     width: 70px;
-    color: #909399;
+    color: var(--ad-muted);
 }
 .info-row .value {
     flex: 1;
-    color: #303133;
+    color: var(--ad-text);
     font-weight: 500;
 }
 .preview-steps {
@@ -1133,14 +1135,14 @@ const getStepTitle = (step) => {
     display: flex;
     gap: 10px;
     padding: 8px;
-    background: #f8f9fa;
+    background: var(--ad-bg);
     border-radius: 4px;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--ad-border);
     font-size: 12px;
 }
 .step-num {
     width: 20px;
-    color: #909399;
+    color: var(--ad-muted);
     font-weight: bold;
     display: flex;
     justify-content: center;
@@ -1153,15 +1155,15 @@ const getStepTitle = (step) => {
 }
 .step-action {
     font-weight: bold;
-    color: #409eff;
+    color: var(--ad-primary);
     margin-bottom: 2px;
 }
 .step-desc {
-    color: #606266;
+    color: var(--ad-muted);
     margin-bottom: 2px;
 }
 .step-target {
-    color: #909399;
+    color: var(--ad-muted);
     font-family: monospace;
     white-space: nowrap;
     overflow: hidden;
@@ -1170,7 +1172,7 @@ const getStepTitle = (step) => {
 
 /* Step Builder Style Replication for Preview */
 .preview-step-card {
-    background: #fafafa;
+    background: var(--ad-bg);
     border-radius: 8px;
     border-left: 3px solid var(--action-color);
     overflow: hidden;
@@ -1194,16 +1196,16 @@ const getStepTitle = (step) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ad-surface);
   flex-shrink: 0;
 }
 
 .preview-step-title {
   flex: 1;
   font-size: 13px;
-  color: #303133;
+  color: var(--ad-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1211,7 +1213,7 @@ const getStepTitle = (step) => {
 
 .expand-icon {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     transition: transform 0.2s;
 }
 .expand-icon.expanded {
@@ -1220,7 +1222,7 @@ const getStepTitle = (step) => {
 
 .preview-step-body {
   padding: 0 10px 10px 10px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--ad-border);
   padding-top: 10px;
   margin-top: 4px;
   font-size: 12px;
@@ -1233,11 +1235,11 @@ const getStepTitle = (step) => {
 }
 .form-row label {
     width: 60px;
-    color: #909399;
+    color: var(--ad-muted);
     flex-shrink: 0;
 }
 .form-row span {
-    color: #303133;
+    color: var(--ad-text);
     flex: 1;
 }
 .break-text {
@@ -1257,4 +1259,17 @@ const getStepTitle = (step) => {
   max-height: 0;
   opacity: 0;
 }
+
+.editor-header { display: flex; align-items: center; gap: 8px; margin: 16px 16px 0; padding: 8px 12px; background: var(--ad-surface); border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); }
+.scenario-name-input { max-width: 320px; font-size: 16px; }
+.save-state { font-size: 12px; color: var(--ad-muted); white-space: nowrap; }
+.editor-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.environment-select { width: 132px; }
+.scenario-builder { padding: 12px 16px 16px; gap: 12px; min-height: 0; }
+.pane { border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); box-shadow: none; }
+.pane-header { height: 44px; padding: 0 12px; }
+.title { font-size: 13px; }
+.step-item { padding: 8px; margin-bottom: 6px; }
+.node-folder-icon { color: var(--ad-muted); }
+@media (max-width: 1180px) { .right-pane { width: 260px !important; } .left-pane { width: 190px !important; } .editor-header { flex-wrap: wrap; } }
 </style>

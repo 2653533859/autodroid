@@ -7,15 +7,16 @@ const source = await readFile(
   'utf8',
 )
 
-test('inspection report keeps three primary metrics and moves diagnostics behind disclosure', () => {
+test('inspection report keeps coverage and evidence metrics and moves diagnostics behind disclosure', () => {
   const template = source.slice(source.indexOf('<template>'))
   const stats = template.slice(template.indexOf('class="stats"'), template.indexOf('class="running-summary"'))
   assert.match(stats, /核心旅程/)
-  assert.match(stats, /运行范围/)
+  assert.match(stats, /应用面覆盖/)
+  assert.match(stats, /残留未覆盖/)
   assert.match(stats, /businessCoverage\.scopeSelected/)
   assert.match(stats, /证据质量/)
   assert.doesNotMatch(stats, /页面族覆盖/)
-  assert.equal((stats.match(/<strong/g) || []).length, 3)
+  assert.equal((stats.match(/<strong/g) || []).length, 4)
   assert.match(template, /<el-collapse-item name="diagnostics" title="运行诊断">/)
   assert.match(source, /已发现页面族展开率/)
   assert.match(source, /family\.ratio \* 1000\) \/ 10/)

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '@/api'
 import { useUserStore } from '@/stores/useUserStore'
@@ -13,6 +13,8 @@ const testingApi = ref(false)
 const testingFb = ref(false)
 const testingAi = ref(false)
 const activeTab = ref('notification')
+const savedSnapshot = ref('')
+const dirty = computed(() => savedSnapshot.value && JSON.stringify(form.value) !== savedSnapshot.value)
 const activeFeatureGroups = ref(['core'])
 const activeStorageGroups = ref([])
 const assetStatus = ref(null)
@@ -94,6 +96,7 @@ const loadSettings = async () => {
     form.value.content_addressed_assets = flagRes.data?.content_addressed_assets === true
     form.value.tiered_asset_retention = flagRes.data?.tiered_asset_retention === true
     if (!form.value.content_addressed_assets) form.value.tiered_asset_retention = false
+    savedSnapshot.value = JSON.stringify(form.value)
   } catch (err) {
     console.error('加载配置失败', err)
     loadError.value = err.response?.data?.detail || err.message || '系统设置加载失败'
@@ -104,11 +107,13 @@ const loadSettings = async () => {
 }
 
 const handleSave = async () => {
+  if (saving.value || loading.value) return
   if (loadError.value) {
     ElMessage.warning('配置尚未完整加载，请先重试')
     return
   }
   if (!form.value.content_addressed_assets) form.value.tiered_asset_retention = false
+  const submittedSnapshot = JSON.stringify(form.value)
   saving.value = true
   try {
     await api.saveSettings([
@@ -138,6 +143,7 @@ const handleSave = async () => {
     if (activeTab.value === 'features' && activeStorageGroups.value.includes('capacity')) {
       await loadAssetStatus()
     }
+    savedSnapshot.value = submittedSnapshot
     ElMessage.success('配置已保存')
   } catch (err) {
     ElMessage.error('保存失败: ' + (err.response?.data?.detail || err.message))
@@ -177,6 +183,7 @@ watch([activeTab, activeStorageGroups], ([tab, groups]) => {
 }, { deep: true })
 
 const handleTestUi = async () => {
+  if (testingUi.value) return
   if (!form.value.feishu_webhook) {
     ElMessage.warning('请先填写 UI 场景报告的 Webhook 地址')
     return
@@ -193,6 +200,7 @@ const handleTestUi = async () => {
 }
 
 const handleTestApi = async () => {
+  if (testingApi.value) return
   if (!form.value.api_testing_webhook) return ElMessage.warning('请先填写接口自动化报告的 Webhook 地址')
   testingApi.value = true
   try {
@@ -206,6 +214,7 @@ const handleTestApi = async () => {
 }
 
 const handleTestFb = async () => {
+  if (testingFb.value) return
   if (!form.value.fastbot_webhook) {
     ElMessage.warning('请先填写智能探索报告的 Webhook 地址')
     return
@@ -222,6 +231,7 @@ const handleTestFb = async () => {
 }
 
 const handleTestAi = async () => {
+  if (testingAi.value) return
   if (!form.value.ai_api_key) {
     ElMessage.warning('请先填写 API Key')
     return
@@ -246,9 +256,9 @@ onMounted(loadSettings)
 </script>
 
 <template>
-  <div class="notification-settings" v-loading="loading">
+  <div class="notification-settings ad-page" v-loading="loading">
     <div class="settings-shell">
-      <div class="page-header">
+      <div class="page-header ad-page-header">
         <h2>系统设置</h2>
         <p class="page-desc">管理通知、AI 服务和试验功能。</p>
       </div>
@@ -358,7 +368,7 @@ onMounted(loadSettings)
         </div>
 
         <!-- 通知推送使用说明 -->
-        <el-card shadow="never" class="tips-card">
+        <details class="settings-guidance"><summary>查看使用说明</summary><el-card shadow="never" class="tips-card">
           <template #header>
             <div class="card-header"><span>使用说明</span></div>
           </template>
@@ -371,7 +381,7 @@ onMounted(loadSettings)
               <li>点击各板块的测试按钮可单独验证配置是否正确。</li>
             </ol>
           </div>
-        </el-card>
+        </el-card></details>
       </el-tab-pane>
 
       <!-- AI 模型配置 Tab -->
@@ -443,7 +453,7 @@ onMounted(loadSettings)
         </el-card>
 
         <!-- AI 配置使用说明 -->
-        <el-card shadow="never" class="tips-card">
+        <details class="settings-guidance"><summary>查看使用说明</summary><el-card shadow="never" class="tips-card">
           <template #header>
             <div class="card-header"><span>使用说明</span></div>
           </template>
@@ -455,7 +465,7 @@ onMounted(loadSettings)
               <li>点击"测试 AI 连接"按钮可验证配置是否正确。</li>
             </ol>
           </div>
-        </el-card>
+        </el-card></details>
       </el-tab-pane>
 
       <el-tab-pane label="试验功能" name="features">
@@ -630,7 +640,7 @@ onMounted(loadSettings)
       </el-tab-pane>
       </el-tabs>
 
-      <div class="global-actions">
+      <div class="global-actions"><span class="save-state" role="status">{{ saving ? '正在保存配置…' : loadError ? '加载失败，请重试' : dirty ? '有未保存的修改' : '配置已同步' }}</span>
         <el-button type="primary" :disabled="Boolean(loadError)" @click="handleSave" :loading="saving">保存全部配置</el-button>
       </div>
     </div>
@@ -645,6 +655,8 @@ export default {
 </script>
 
 <style scoped>
+.notification-settings{padding:0}
+
 .notification-settings {
   flex: 1;
   width: 100%;
@@ -655,7 +667,7 @@ export default {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  background: #f2f3f5;
+  background: var(--ad-bg);
 }
 
 .settings-shell {
@@ -673,19 +685,19 @@ export default {
 }
 
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .page-header h2 {
   margin: 0 0 8px;
-  font-size: 22px;
-  color: #303133;
+  font-size: 20px;
+  color: var(--ad-text);
 }
 
 .page-desc {
   margin: 0;
-  color: #909399;
-  font-size: 14px;
+  color: var(--ad-muted);
+  font-size: 13px;
 }
 
 .settings-tabs {
@@ -700,12 +712,12 @@ export default {
 }
 
 .settings-tabs :deep(.el-tabs__header) {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .settings-tabs :deep(.el-tabs__item) {
-  font-size: 15px;
-  padding: 0 24px;
+  font-size: 13px;
+  padding: 0 16px;
 }
 
 .dual-panel {
@@ -722,7 +734,7 @@ export default {
 
 .card-header {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -731,17 +743,17 @@ export default {
 
 .form-tip {
   font-size: 12px;
-  color: #909399;
+  color: var(--ad-muted);
   margin-top: 4px;
   line-height: 1.5;
 }
 
 .form-tip code {
-  background: #f0f2f5;
+  background: var(--ad-bg);
   padding: 1px 6px;
   border-radius: 3px;
-  font-size: 11px;
-  color: #606266;
+  font-size: 12px;
+  color: var(--ad-text);
 }
 
 .form-actions {
@@ -757,31 +769,33 @@ export default {
   margin-top: 16px;
   padding: 12px 0 16px;
   display: flex;
-  justify-content: flex-end;
-  border-top: 1px solid #dcdfe6;
-  background: #f2f3f5;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--ad-border);
+  background: var(--ad-bg);
 }
 
-.storage-collapse { margin-top: 12px; padding: 0 16px; border: 1px solid #dcdfe6; background: #fff; }
-.storage-collapse :deep(.el-collapse-item__header) { min-height: 58px; height: auto; line-height: 1.35; }
+.storage-collapse { margin-top: 12px; padding: 0 16px; border: 1px solid var(--ad-border); background: var(--ad-surface); }
+.storage-collapse :deep(.el-collapse-item__header) { min-height: 48px; height: auto; line-height: 1.35; }
 .storage-collapse-title { min-width: 0; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-right: 12px; }
 .storage-collapse-title > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.storage-collapse-title strong { color: #303133; font-size: 14px; }
-.storage-collapse-title span { overflow: hidden; color: #909399; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.storage-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-bottom: 14px; background: #ebeef5; border: 1px solid #ebeef5; }
-.storage-stats > div { min-height: 66px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; gap: 6px; background: #fff; }
-.storage-stats span { color: #909399; font-size: 12px; }
-.storage-stats strong { color: #303133; font-size: 16px; }
+.storage-collapse-title strong { color: var(--ad-text); font-size: 13px; }
+.storage-collapse-title span { overflow: hidden; color: var(--ad-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.storage-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin-bottom: 14px; background: var(--ad-border); border: 1px solid var(--ad-border); }
+.storage-stats > div { min-height: 66px; padding: 10px 12px; display: flex; flex-direction: column; justify-content: center; gap: 6px; background: var(--ad-surface); }
+.storage-stats span { color: var(--ad-muted); font-size: 12px; }
+.storage-stats strong { color: var(--ad-text); font-size: 16px; }
 
 .tips-card {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .tips-content ol {
   margin: 0;
   padding-left: 20px;
   line-height: 2;
-  color: #606266;
+  color: var(--ad-text);
 }
 
 /* AI 配置卡片 */
@@ -790,23 +804,23 @@ export default {
 }
 
 .ai-card :deep(.el-card__header) {
-  background: #f7f8fa;
+  background: var(--ad-bg);
 }
 
 .feature-card :deep(.el-card__body) { padding: 0 20px; }
 .feature-groups { border: 0; }
-.feature-groups :deep(.el-collapse-item__header) { min-height: 52px; height: auto; line-height: 1.3; }
+.feature-groups :deep(.el-collapse-item__header) { min-height: 44px; height: auto; line-height: 1.3; }
 .feature-groups :deep(.el-collapse-item__content) { padding-bottom: 8px; }
 .feature-group-title { min-width: 0; display: flex; align-items: baseline; gap: 12px; }
-.feature-group-title strong { color: #303133; font-size: 14px; }
-.feature-group-title span { color: #909399; font-size: 12px; font-weight: 400; }
-.feature-setting-row { min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 9px 0; border-top: 1px solid #f0f2f5; }
+.feature-group-title strong { color: var(--ad-text); font-size: 13px; }
+.feature-group-title span { color: var(--ad-muted); font-size: 12px; font-weight: 400; }
+.feature-setting-row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 9px 0; border-top: 1px solid var(--ad-bg); }
 .feature-setting-row > div { min-width: 0; }
 .feature-setting-row :deep(.el-switch) { flex-shrink: 0; }
-.feature-name { color: #303133; font-size: 13px; font-weight: 600; }
-.feature-desc { margin-top: 3px; color: #909399; font-size: 12px; line-height: 1.45; }
+.feature-name { color: var(--ad-text); font-size: 13px; font-weight: 600; }
+.feature-desc { margin-top: 3px; color: var(--ad-muted); font-size: 12px; line-height: 1.45; }
 .feature-control { max-width: 180px; flex-shrink: 0; display: flex; align-items: flex-end; flex-direction: column; gap: 3px; }
-.dependency-reason { color: #a56a00; font-size: 11px; line-height: 1.35; text-align: right; }
+.dependency-reason { color: var(--ad-warning); font-size: 12px; line-height: 1.35; text-align: right; }
 
 .ai-form-grid {
   display: grid;
@@ -847,4 +861,6 @@ export default {
   .settings-tabs :deep(.el-tabs__header) { margin-bottom: 10px; }
   .global-actions { margin-top: 8px; padding-top: 8px; padding-bottom: 8px; }
 }
+.save-state{font-size:12px;color:var(--ad-muted)}.settings-guidance{margin:12px 0}.settings-guidance>summary{cursor:pointer;color:var(--ad-muted);font-size:12px;line-height:32px}.settings-guidance .tips-card{margin-top:8px}.panel-card :deep(.el-card__header),.ai-card :deep(.el-card__header){padding:12px 16px;background:var(--ad-surface)}.panel-card :deep(.el-card__body),.ai-card :deep(.el-card__body){padding:16px}.feature-card :deep(.el-card__body){padding:0 16px}.global-actions{background:var(--ad-bg)}
+@media(max-width:760px){.page-desc,.card-header,.form-tip,.feature-name,.feature-desc,.feature-group-title strong,.feature-group-title span,.storage-collapse-title strong,.storage-collapse-title span,.storage-stats span,.dependency-reason,.save-state,.settings-guidance>summary{font-size:14px}.settings-guidance>summary{min-height:44px}.feature-setting-row{padding:12px 0}.global-actions{align-items:stretch;flex-direction:column}.global-actions .el-button{width:100%;margin:0}.settings-shell{padding:12px 12px 0}.feature-control{max-width:140px}.storage-collapse-title span{white-space:normal}}
 </style>

@@ -42,6 +42,9 @@ if [[ -z "$LAN_IP" ]] && command -v ipconfig >/dev/null 2>&1; then
     LAN_IP="$(ipconfig getifaddr en1 2>/dev/null || true)"
   fi
 fi
+if [[ -z "$LAN_IP" ]] && command -v ifconfig >/dev/null 2>&1; then
+  LAN_IP="$(ifconfig 2>/dev/null | awk '/inet / && $2 != "127.0.0.1" && $2 !~ /^169\.254\./ {print $2; exit}' || true)"
+fi
 
 echo "[AutoDroid] 服务启动中..."
 echo "[AutoDroid] 本机访问: http://127.0.0.1:${PORT}"
