@@ -8,8 +8,8 @@ function update(i, key, value) { const rows = copy(props.modelValue); rows[i][ke
 <template>
   <div>
     <div v-for="(row, i) in modelValue" :key="i" class="param-row" :data-param-index="i">
-      <el-checkbox :model-value="row.enabled" @update:model-value="update(i, 'enabled', $event)" />
-      <el-input :model-value="row.name" placeholder="参数名" class="param-name" @update:model-value="update(i, 'name', $event)" />
+      <el-checkbox :aria-label="'启用参数 ' + (row.name || (i + 1))" :model-value="row.enabled" @update:model-value="update(i, 'enabled', $event)" />
+      <el-input :model-value="row.name" placeholder="参数名" aria-label="参数名称" class="param-name" @update:model-value="update(i, 'name', $event)" />
       <ValueEditor :model-value="row.value" :location="[...location,i,'value']" :sources="sources" :variables="variables" text-only @update:model-value="update(i, 'value', $event)" />
       <el-dropdown trigger="click" @command="emit('update:modelValue', modelValue.filter((_, j) => i !== j))"><el-button link size="small" aria-label="参数操作">···</el-button><template #dropdown><el-dropdown-menu><el-dropdown-item command="delete">删除参数</el-dropdown-item></el-dropdown-menu></template></el-dropdown>
     </div>
@@ -17,6 +17,7 @@ function update(i, key, value) { const rows = copy(props.modelValue); rows[i][ke
   </div>
 </template>
 <style scoped>
-.param-row{display:grid;grid-template-columns:20px minmax(90px,130px) minmax(0,1fr) 32px;gap:10px;align-items:start;margin-bottom:16px}
+.param-row{display:grid;grid-template-columns:20px minmax(90px,130px) minmax(0,1fr) 32px;gap:8px;align-items:start;margin-bottom:8px}
 .param-row>.el-button{height:32px;margin:0}.param-name{width:100%;min-width:0}
+@media(max-width:760px){.param-row{grid-template-columns:28px minmax(0,1fr) 44px;gap:8px;margin-bottom:16px}.param-row>.value-editor{grid-column:2/4;grid-row:2}.param-row>.el-dropdown{grid-column:3;grid-row:1}}
 </style>

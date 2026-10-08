@@ -49,19 +49,19 @@ export const runStatusLabel = (status) => {
 /** 执行状态 → 主题色（状态条等非 tag 场景） */
 export const runStatusColor = (status) => {
     const s = normalizeRunStatus(status)
-    if (s === 'PASS' || s === 'COMPLETED') return '#67C23A'
-    if (s === 'WARNING' || s === 'ERROR' || s === 'QUEUED') return '#E6A23C'
-    if (s === 'FAIL') return '#F56C6C'
-    if (s === 'RUNNING') return '#409EFF'
-    return '#909399' // ABORTED / PENDING / 未执行 / 未知
+    if (s === 'PASS' || s === 'COMPLETED') return 'var(--ad-success)'
+    if (s === 'WARNING' || s === 'ERROR' || s === 'QUEUED') return 'var(--ad-warning)'
+    if (s === 'FAIL') return 'var(--ad-danger)'
+    if (s === 'RUNNING') return 'var(--ad-primary)'
+    return 'var(--ad-muted)' // ABORTED / PENDING / 未执行 / 未知
 }
 
 const DEVICE_STATUS_META = {
-    IDLE: { tagType: 'success', label: '🟢 空闲' },
-    BUSY: { tagType: 'danger', label: '🔴 执行中' },
-    FASTBOT_RUNNING: { tagType: 'danger', label: '🔴 跑测中' },
-    OFFLINE: { tagType: 'info', label: '⚫ 离线' },
-    WDA_DOWN: { tagType: 'warning', label: '🟠 WDA异常' },
+    IDLE: { tagType: 'success', label: '空闲' },
+    BUSY: { tagType: 'danger', label: '执行中' },
+    FASTBOT_RUNNING: { tagType: 'danger', label: '跑测中' },
+    OFFLINE: { tagType: 'info', label: '离线' },
+    WDA_DOWN: { tagType: 'warning', label: 'WDA异常' },
 }
 
 /** 设备状态 → el-tag type */

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Monitor, Timer, User, Picture, View, Switch } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -24,6 +24,24 @@ const showScreenshot = ref(false)
 const currentScreenshot = ref('')
 const currentPreviewTitle = ref('步骤预览')
 const devices = ref([])
+const loadError = ref('')
+const resultSummary = computed(() => {
+    const steps = cases.value.flatMap(item => item.steps)
+    return { total: steps.length, passed: steps.filter(step => normalizeStatus(step.status) === 'PASS').length,
+        failed: steps.filter(step => ['FAIL', 'ERROR'].includes(normalizeStatus(step.status))).length,
+        warnings: steps.filter(step => normalizeStatus(step.status) === 'WARNING').length }
+})
+const firstIssue = computed(() => {
+    const steps = cases.value.flatMap(item => item.steps.map(step => ({ ...step, caseName: item.name, collapseKey: item.collapseKey })))
+    return steps.find(step => ['FAIL', 'ERROR'].includes(normalizeStatus(step.status)))
+        || steps.find(step => normalizeStatus(step.status) === 'WARNING')
+        || null
+})
+const revealIssue = () => {
+    if (!firstIssue.value) return
+    if (!activeCaseNames.value.includes(firstIssue.value.collapseKey)) activeCaseNames.value.push(firstIssue.value.collapseKey)
+    document.getElementById(`report-case-${firstIssue.value.collapseKey}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 
 // 执行对比（与上一次同场景执行 diff）
 const showCompareDialog = ref(false)
@@ -125,7 +143,7 @@ const formatStepMessage = (row) => {
 }
 
 // 结构化错误信息（错误码/修复建议）仅对失败/告警步骤展示
-const isFailedLikeStep = (row) => ['FAIL', 'WARNING'].includes(normalizeStatus(row?.status))
+const isFailedLikeStep = (row) => ['FAIL', 'ERROR', 'WARNING'].includes(normalizeStatus(row?.status))
 
 const getStepErrorCode = (row) => {
     if (!isFailedLikeStep(row)) return ''
@@ -161,7 +179,7 @@ const hasStepPreview = (row) => Boolean(getStepPreviewPath(row))
 
 const getFailureScreenshotPath = (row) => {
     const status = normalizeStatus(row?.status)
-    if (!['FAIL', 'WARNING'].includes(status)) return ''
+    if (!['FAIL', 'ERROR', 'WARNING'].includes(status)) return ''
     return row?.screenshot_path || ''
 }
 
@@ -169,6 +187,7 @@ const hasFailureScreenshot = (row) => Boolean(getFailureScreenshotPath(row))
 
 const fetchDetail = async () => {
     loading.value = true
+    loadError.value = ''
     try {
         const res = await api.getReport(id)
         if (res.data) {
@@ -211,7 +230,7 @@ const fetchDetail = async () => {
                 c.duration += (step.duration || 0)
 
                 const status = normalizeStatus(step.status)
-                if (status === 'FAIL') {
+                if (status === 'FAIL' || status === 'ERROR') {
                     c.status = 'FAIL'
                     c.hasError = true
                 } else if (status === 'WARNING' && c.status !== 'FAIL') {
@@ -225,10 +244,11 @@ const fetchDetail = async () => {
                 ...item,
                 collapseKey: `${index}-${item.name}`,
             }))
-            activeCaseNames.value = []
+            activeCaseNames.value = cases.value.filter(item => item.hasError).map(item => item.collapseKey)
         }
     } catch (err) {
-        ElMessage.error('获取报告详情失败')
+        loadError.value = '获取报告详情失败，请重试'
+        ElMessage.error(loadError.value)
     } finally {
         loading.value = false
     }
@@ -268,7 +288,7 @@ const getDuration = (ms) => {
 
 const tableRowClassName = ({ row }) => {
     const status = normalizeStatus(row?.status)
-    if (status === 'FAIL') {
+    if (status === 'FAIL' || status === 'ERROR') {
         return 'error-row'
     }
     if (status === 'WARNING') return 'warning-row'
@@ -301,12 +321,22 @@ onMounted(() => {
             <span><el-icon><Timer /></el-icon>{{ formatDate(execution.start_time) }}</span>
         </div>
 
+
+        <section v-if="execution" class="report-conclusion" aria-label="执行结论">
+            <div class="conclusion-counts"><strong>{{ resultSummary.total }} 个步骤</strong><span>通过 {{ resultSummary.passed }}</span><span :class="{ 'error-text': resultSummary.failed }">失败 {{ resultSummary.failed }}</span><span>告警 {{ resultSummary.warnings }}</span></div>
+            <div v-if="firstIssue" class="first-issue">
+                <div><strong>{{ firstIssue.caseName }} · 第 {{ firstIssue.local_step_order || firstIssue.step_order }} 步</strong><p>{{ firstIssue.error_message || firstIssue.display_name }}</p><p v-if="getStepSuggestion(firstIssue)" class="suggestion-text">建议：{{ getStepSuggestion(firstIssue) }}</p></div>
+                <div class="ad-row-actions"><el-button link type="primary" @click="revealIssue">定位步骤</el-button><el-button v-if="hasFailureScreenshot(firstIssue)" link type="primary" @click="viewFailureScreenshot(firstIssue)">查看失败截图</el-button></div>
+            </div>
+        </section>
+        <el-alert v-if="loadError" :title="loadError" type="error" :closable="false"><el-button link @click="fetchDetail">重试</el-button></el-alert>
         <div class="mobile-case-flow">
             <el-collapse v-model="activeCaseNames" v-if="cases.length > 0" class="mobile-case-collapse">
                 <el-collapse-item
                     v-for="(caseItem, caseIndex) in cases"
                     :key="caseItem.collapseKey"
                     :name="caseItem.collapseKey"
+                    :id="`report-case-${caseItem.collapseKey}`"
                 >
                     <template #title>
                         <div class="mobile-detail-case-header">
@@ -364,7 +394,7 @@ onMounted(() => {
                     </div>
                 </el-collapse-item>
             </el-collapse>
-            <el-empty v-else-if="!loading" description="暂无用例执行数据" />
+            <el-empty v-else-if="!loading && !loadError" description="暂无用例执行数据" />
         </div>
 
         <el-dialog v-model="showScreenshot" :title="currentPreviewTitle" :fullscreen="true">
@@ -376,7 +406,7 @@ onMounted(() => {
 
     <div v-else class="detail-container" v-loading="loading">
         <!-- Header -->
-        <div class="detail-header">
+        <div class="detail-header ad-page-header">
             <div class="header-left">
                 <el-button link :icon="ArrowLeft" @click="handleBack">返回</el-button>
                 <h2 v-if="execution">{{ execution.scenario_name }}</h2>
@@ -401,6 +431,15 @@ onMounted(() => {
             </div>
         </div>
 
+
+        <section v-if="execution" class="report-conclusion" aria-label="执行结论">
+            <div class="conclusion-counts"><strong>{{ resultSummary.total }} 个步骤</strong><span>通过 {{ resultSummary.passed }}</span><span :class="{ 'error-text': resultSummary.failed }">失败 {{ resultSummary.failed }}</span><span>告警 {{ resultSummary.warnings }}</span></div>
+            <div v-if="firstIssue" class="first-issue">
+                <div><strong>{{ firstIssue.caseName }} · 第 {{ firstIssue.local_step_order || firstIssue.step_order }} 步</strong><p>{{ firstIssue.error_message || firstIssue.display_name }}</p><p v-if="getStepSuggestion(firstIssue)" class="suggestion-text">建议：{{ getStepSuggestion(firstIssue) }}</p></div>
+                <div class="ad-row-actions"><el-button link type="primary" @click="revealIssue">定位步骤</el-button><el-button v-if="hasFailureScreenshot(firstIssue)" link type="primary" @click="viewFailureScreenshot(firstIssue)">查看失败截图</el-button></div>
+            </div>
+        </section>
+        <el-alert v-if="loadError" :title="loadError" type="error" :closable="false"><el-button link @click="fetchDetail">重试</el-button></el-alert>
         <!-- content -->
         <div class="detail-content">
              <el-collapse v-model="activeCaseNames" v-if="cases.length > 0">
@@ -408,6 +447,7 @@ onMounted(() => {
                     v-for="(caseItem, index) in cases" 
                     :key="caseItem.collapseKey"
                     :name="caseItem.collapseKey"
+                    :id="`report-case-${caseItem.collapseKey}`"
                  >
                      <template #title>
                          <div class="case-header">
@@ -435,7 +475,7 @@ onMounted(() => {
                                  </template>
                              </el-table-column>
                              
-                             <el-table-column label="名称 / 描述" width="276">
+                             <el-table-column label="名称 / 描述" min-width="276">
                                  <template #default="{ row }">
                                      <div class="step-name">
                                          {{ row.display_name || row.step_name }}
@@ -452,7 +492,7 @@ onMounted(() => {
                              
                              <el-table-column
                                 label="预览"
-                                min-width="300"
+                                width="130"
                                 align="left"
                                 header-align="left"
                                 class-name="preview-column"
@@ -504,11 +544,11 @@ onMounted(() => {
                  </el-collapse-item>
              </el-collapse>
              
-             <el-empty v-else description="暂无用例执行数据" />
+             <el-empty v-else-if="!loading && !loadError" description="暂无用例执行数据" />
         </div>
 
         <!-- Screenshot Modal -->
-        <el-dialog v-model="showScreenshot" :title="currentPreviewTitle" width="80%" top="5vh">
+        <el-dialog v-model="showScreenshot" :title="currentPreviewTitle" width="min(1120px, calc(100vw - 24px))" top="5vh">
             <div class="screenshot-wrapper">
                 <img :src="currentScreenshot" alt="步骤预览" />
             </div>
@@ -524,21 +564,29 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.report-conclusion { margin: 0 16px 12px; padding: 12px 16px; border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); background: var(--ad-surface); }
+.conclusion-counts { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--ad-muted); }
+.conclusion-counts strong { color: var(--ad-text); }
+.first-issue { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--ad-border); padding-top: 12px; margin-top: 12px; }
+.first-issue p { margin: 4px 0; color: var(--ad-danger); overflow-wrap: anywhere; }
+.first-issue .ad-row-actions { flex-shrink: 0; }
+@media (max-width: 767px) { .report-conclusion { margin: 0 0 12px; padding: 12px; } .conclusion-counts { flex-wrap: wrap; gap: 8px 16px; font-size: 14px; } .first-issue { flex-direction: column; font-size: 14px; } }
+
 .detail-container {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f2f3f5;
+    background: var(--ad-bg);
 }
 
 .detail-header {
-    background: #fff;
+    background: var(--ad-surface);
     padding: 16px 24px;
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin: 10px;
+    margin: 16px;
 }
 
 .header-left {
@@ -549,15 +597,15 @@ onMounted(() => {
 
 .header-left h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 600;
 }
 
 .header-right {
     display: flex;
     align-items: center;
-    gap: 20px;
-    color: #606266;
+    gap: 16px;
+    color: var(--ad-muted);
     font-size: 13px;
 }
 
@@ -569,9 +617,9 @@ onMounted(() => {
 
 .detail-content {
     flex: 1;
-    background: #fff;
-    border-radius: 4px;
-    padding: 20px;
+    background: var(--ad-surface);
+    border-radius: var(--ad-radius);
+    padding: 16px;
     overflow-y: auto;
     margin: 0 10px 10px 10px;
 }
@@ -591,19 +639,19 @@ onMounted(() => {
 
 .error-text {
     font-size: 12px;
-    color: #F56C6C;
+    color: var(--ad-danger);
     margin-top: 4px;
 }
 
 .warning-text {
     font-size: 12px;
-    color: #E6A23C;
+    color: var(--ad-warning);
     margin-top: 4px;
 }
 
 .skip-text {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     margin-top: 4px;
 }
 
@@ -614,7 +662,7 @@ onMounted(() => {
 
 .suggestion-text {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     margin-top: 4px;
     line-height: 1.5;
 }
@@ -623,7 +671,7 @@ onMounted(() => {
     display: flex;
     justify-content: center;
     background: #000;
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
     overflow: hidden;
 }
 
@@ -639,10 +687,10 @@ onMounted(() => {
 }
 
 :deep(.el-collapse-item__header) {
-    background: #f8f9fa;
+    background: var(--ad-bg);
     border-radius: 6px;
     margin-bottom: 8px;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid var(--ad-border);
     padding: 0 16px;
     height: 56px;
     line-height: normal;
@@ -668,26 +716,26 @@ onMounted(() => {
     width: 28px;
     height: 28px;
     border-radius: 50%;
-    background: #e9ecef;
+    background: var(--ad-border);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 600;
     font-size: 13px;
-    color: #6c757d;
+    color: var(--ad-muted);
     margin-right: 12px;
 }
 
 .case-title {
     font-size: 15px;
     font-weight: 600;
-    color: #1a1a2e;
+    color: var(--ad-text);
     flex: 1;
 }
 
 .case-meta {
     font-size: 13px;
-    color: #6c757d;
+    color: var(--ad-muted);
     display: flex;
     align-items: center;
     align-self: center;
@@ -701,43 +749,43 @@ onMounted(() => {
 }
 
 .case-body {
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--ad-border);
     border-radius: 6px;
     overflow: hidden;
 }
 
 /* Error Row Highlight */
 :deep(.el-table .error-row) {
-    background-color: #fef0f0 !important;
+    background-color: color-mix(in srgb, var(--ad-danger) 7%, white) !important;
 }
 
 :deep(.el-table .error-row:hover > td.el-table__cell) {
-    background-color: #fde2e2 !important;
+    background-color: color-mix(in srgb, var(--ad-danger) 12%, white) !important;
 }
 
 /* Warning Row Highlight */
 :deep(.el-table .warning-row) {
-    background-color: #fdf6ec !important;
+    background-color: color-mix(in srgb, var(--ad-warning) 7%, white) !important;
 }
 
 :deep(.el-table .warning-row:hover > td.el-table__cell) {
-    background-color: #fcf1e3 !important;
+    background-color: color-mix(in srgb, var(--ad-warning) 12%, white) !important;
 }
 
 /* Skip Row Highlight */
 :deep(.el-table .skip-row) {
-    background-color: #f4f4f5 !important;
+    background-color: var(--ad-bg) !important;
 }
 
 :deep(.el-table .skip-row:hover > td.el-table__cell) {
-    background-color: #ebedef !important;
+    background-color: var(--ad-border) !important;
 }
 
 .mobile-detail-container {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f6f7f9;
+    background: var(--ad-bg);
     overflow: hidden;
 }
 
@@ -747,8 +795,8 @@ onMounted(() => {
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 8px;
     align-items: center;
-    background: #ffffff;
-    border-bottom: 1px solid #ebeef5;
+    background: var(--ad-surface);
+    border-bottom: 1px solid var(--ad-border);
     flex-shrink: 0;
 }
 
@@ -761,15 +809,15 @@ onMounted(() => {
 
 .mobile-detail-title strong {
     font-size: 15px;
-    color: #303133;
+    color: var(--ad-text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .mobile-detail-title span {
-    font-size: 12px;
-    color: #909399;
+    font-size: 14px;
+    color: var(--ad-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -780,10 +828,10 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    color: #606266;
-    font-size: 12px;
-    background: #ffffff;
-    border-bottom: 1px solid #ebeef5;
+    color: var(--ad-muted);
+    font-size: 14px;
+    background: var(--ad-surface);
+    border-bottom: 1px solid var(--ad-border);
     flex-shrink: 0;
 }
 
@@ -800,7 +848,7 @@ onMounted(() => {
     padding: 12px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .mobile-case-collapse {
@@ -808,13 +856,13 @@ onMounted(() => {
     border-bottom: none;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .mobile-case-collapse :deep(.el-collapse-item) {
-    border: 1px solid #ebeef5;
-    border-radius: 8px;
-    background: #ffffff;
+    border: 1px solid var(--ad-border);
+    border-radius: var(--ad-panel-radius);
+    background: var(--ad-surface);
     overflow: hidden;
 }
 
@@ -825,16 +873,16 @@ onMounted(() => {
     padding: 0 12px;
     border-radius: 0;
     border-bottom: none;
-    background: #ffffff;
+    background: var(--ad-surface);
 }
 
 .mobile-case-collapse :deep(.el-collapse-item.is-active .el-collapse-item__header) {
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--ad-border);
 }
 
 .mobile-case-collapse :deep(.el-collapse-item__wrap) {
     border-bottom: none;
-    background: #ffffff;
+    background: var(--ad-surface);
 }
 
 .mobile-case-collapse :deep(.el-collapse-item__content) {
@@ -842,9 +890,9 @@ onMounted(() => {
 }
 
 .mobile-detail-case {
-    border: 1px solid #ebeef5;
-    border-radius: 8px;
-    background: #ffffff;
+    border: 1px solid var(--ad-border);
+    border-radius: var(--ad-panel-radius);
+    background: var(--ad-surface);
     overflow: hidden;
 }
 
@@ -853,8 +901,8 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    border-bottom: 1px solid #ebeef5;
+    gap: 8px;
+    border-bottom: 1px solid var(--ad-border);
 }
 
 .mobile-detail-case-header :deep(.el-tag) {
@@ -877,13 +925,13 @@ onMounted(() => {
 }
 
 .mobile-detail-case-header span {
-    font-size: 11px;
-    color: #909399;
+    font-size: 14px;
+    color: var(--ad-muted);
 }
 
 .mobile-detail-case-header strong {
     font-size: 14px;
-    color: #303133;
+    color: var(--ad-text);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -903,7 +951,7 @@ onMounted(() => {
     grid-template-columns: 38px minmax(0, 1fr);
     gap: 8px;
     padding: 12px;
-    border-bottom: 1px solid #f0f2f5;
+    border-bottom: 1px solid var(--ad-bg);
 }
 
 .mobile-step-item:last-child {
@@ -914,12 +962,12 @@ onMounted(() => {
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: #f4f4f5;
-    color: #606266;
+    background: var(--ad-bg);
+    color: var(--ad-muted);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
 }
 
@@ -936,8 +984,8 @@ onMounted(() => {
 
 .mobile-step-title strong {
     min-width: 0;
-    font-size: 13px;
-    color: #303133;
+    font-size: 14px;
+    color: var(--ad-text);
     line-height: 1.4;
 }
 
@@ -952,24 +1000,32 @@ onMounted(() => {
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    color: #909399;
-    font-size: 12px;
+    color: var(--ad-muted);
+    font-size: 14px;
 }
 
 .mobile-step-item.error-row {
-    background: #fef0f0;
+    background: color-mix(in srgb, var(--ad-danger) 7%, white);
 }
 
 .mobile-step-item.warning-row {
-    background: #fdf6ec;
+    background: color-mix(in srgb, var(--ad-warning) 7%, white);
 }
 
 .mobile-step-item.skip-row {
-    background: #f4f4f5;
+    background: var(--ad-bg);
 }
 
 .mobile-screenshot-wrapper {
     min-height: calc(100dvh - 96px);
     align-items: center;
 }
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  [class*="mobile-"] { font-size: 14px; }
+  [class*="mobile-"] strong, [class*="mobile-"] span, [class*="mobile-"] small { font-size: inherit; }
+}
+@media (max-width: 767px) { .mobile-detail-container .suggestion-text, .mobile-detail-container .error-text, .mobile-detail-container .warning-text, .mobile-detail-container .skip-text { font-size: 14px; } }
 </style>

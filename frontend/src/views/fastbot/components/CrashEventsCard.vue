@@ -14,7 +14,7 @@ defineEmits(['view-log', 'view-replay'])
         <template #header>
             <span class="card-title">异常事件记录 ({{ crashEvents.length }})</span>
         </template>
-        <el-table :data="crashEvents" :header-cell-style="{ background: '#f5f7fa', color: '#606266' }">
+        <el-table :data="crashEvents">
             <el-table-column label="时间" prop="time" width="120" align="center" />
             <el-table-column label="类型" width="100" align="center">
                 <template #default="{ row }">
@@ -53,14 +53,21 @@ defineEmits(['view-log', 'view-replay'])
 
 <style scoped>
 .events-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .card-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
 }
 
-.text-gray { color: #909399; font-size: 13px; }
+.text-gray { color: var(--ad-muted); font-size: 13px; }
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
+}
 </style>

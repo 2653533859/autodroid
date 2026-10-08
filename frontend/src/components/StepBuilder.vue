@@ -683,13 +683,13 @@ const handleExecuteStep = async (step) => {
               <el-button 
                 :icon="VideoPlay" 
                 size="small" 
-                circle
-                type="success" 
+                text
+                class="step-run-action"
                 @click.stop="handleExecuteStep(step)"
                 :loading="executingStepId === step" 
                 title="执行步骤"
               />
-              <el-button :icon="Delete" size="small" circle type="danger" @click.stop="removeStep(index)" title="删除步骤" />
+              <el-button :icon="Delete" size="small" text class="step-remove-action" @click.stop="removeStep(index)" title="删除步骤" />
               <el-icon class="expand-icon" :class="{ expanded: isExpanded(index) }">
                 <ArrowDown />
               </el-icon>
@@ -983,7 +983,7 @@ const handleExecuteStep = async (step) => {
     </div>
     
     <div class="builder-footer">
-      <el-button :icon="Plus" type="primary" @click="addCustomStep" style="width: 100%">
+      <el-button :icon="Plus" plain @click="addCustomStep" style="width: 100%">
         添加自定义步骤
       </el-button>
     </div>
@@ -995,20 +995,20 @@ const handleExecuteStep = async (step) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-left: 1px solid #e4e7ed;
+  background: var(--ad-surface);
+  border-left: none;
 }
 
 .builder-header {
-  padding: 12px 20px;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ad-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #fafafa;
+  background-color: var(--ad-bg);
   flex-shrink: 0;
   box-sizing: border-box;
-  height: 50px;
+  height: 44px;
 }
 
 .header-left {
@@ -1023,22 +1023,22 @@ const handleExecuteStep = async (step) => {
 }
 
 .title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .step-count {
   font-size: 12px;
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--ad-primary);
+  background: var(--ad-primary-soft);
   padding: 4px 10px;
   border-radius: 12px;
 }
 
 .ai-trigger-section {
   padding: 12px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--ad-border);
 }
 
 .ai-dialog-content {
@@ -1052,11 +1052,11 @@ const handleExecuteStep = async (step) => {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, #f0f4ff 0%, #e8f0fe 100%);
+  background: var(--ad-primary-soft);
   border-radius: 8px;
-  border-left: 3px solid #667eea;
-  color: #409eff;
-  font-size: 14px;
+  border-left: 3px solid var(--ad-primary);
+  color: var(--ad-primary);
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -1071,7 +1071,7 @@ const handleExecuteStep = async (step) => {
 
 .examples-title {
   font-size: 13px;
-  color: #606266;
+  color: var(--ad-muted);
   margin-bottom: 8px;
 }
 
@@ -1087,10 +1087,10 @@ const handleExecuteStep = async (step) => {
 }
 
 .example-tag:hover {
-  background: #667eea;
-  color: #fff;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  background: var(--ad-primary-soft);
+  color: var(--ad-primary);
+  transform: none;
+  box-shadow: none;
 }
 
 .ai-dialog-footer {
@@ -1102,8 +1102,8 @@ const handleExecuteStep = async (step) => {
 
 .ai-input-section {
   padding: 12px;
-  border-bottom: 1px solid #e4e7ed;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf1 100%);
+  border-bottom: 1px solid var(--ad-border);
+  background: var(--ad-primary-soft);
 }
 
 .step-list {
@@ -1119,15 +1119,15 @@ const handleExecuteStep = async (step) => {
 }
 
 .step-card {
-  background: #fafafa;
+  background: var(--ad-bg);
   border-radius: 8px;
-  border-left: 3px solid var(--action-color);
+  border: 1px solid var(--ad-border);
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
 .step-card:hover {
-  background: #f5f7fa;
+  background: var(--ad-bg);
 }
 
 .step-header {
@@ -1140,7 +1140,7 @@ const handleExecuteStep = async (step) => {
 
 .drag-handle {
   cursor: grab;
-  color: #c0c4cc;
+  color: var(--ad-muted);
   display: flex;
   align-items: center;
 }
@@ -1152,21 +1152,21 @@ const handleExecuteStep = async (step) => {
 .step-index {
   width: 28px;
   height: 28px;
-  background: var(--action-color);
+  background: var(--ad-primary-soft);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 12px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ad-primary);
   flex-shrink: 0;
 }
 
 .step-title {
   flex: 1;
   font-size: 13px;
-  color: #303133;
+  color: var(--ad-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1182,7 +1182,7 @@ const handleExecuteStep = async (step) => {
 
 .expand-icon {
   transition: transform 0.2s ease;
-  color: #909399;
+  color: var(--ad-muted);
 }
 
 .expand-icon.expanded {
@@ -1191,7 +1191,7 @@ const handleExecuteStep = async (step) => {
 
 .step-body {
   padding: 0 12px 12px 12px;
-  border-top: 1px solid #ebeef5;
+  border-top: 1px solid var(--ad-border);
   padding-top: 12px;
   margin-top: 4px;
 }
@@ -1210,7 +1210,7 @@ const handleExecuteStep = async (step) => {
 .form-row label {
   width: 70px;
   font-size: 12px;
-  color: #606266;
+  color: var(--ad-muted);
   flex-shrink: 0;
 }
 
@@ -1240,7 +1240,7 @@ const handleExecuteStep = async (step) => {
 }
 
 .retry-help-icon {
-  color: #909399;
+  color: var(--ad-muted);
   cursor: help;
 }
 
@@ -1251,20 +1251,20 @@ const handleExecuteStep = async (step) => {
 }
 
 .help-text {
-  font-size: 11px;
-  color: #909399;
+  font-size: 12px;
+  color: var(--ad-muted);
   line-height: 1.2;
 }
 
 .builder-footer {
   padding: 12px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--ad-border);
 }
 
 .var-dropdown-btn {
   font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
   font-weight: 700;
-  color: #409eff;
+  color: var(--ad-primary);
   padding: 0 6px;
 }
 
@@ -1311,4 +1311,7 @@ const handleExecuteStep = async (step) => {
   padding-top: 0;
   padding-bottom: 0;
 }
+.step-actions :deep(.el-button) { color: var(--ad-muted); }
+.step-actions :deep(.step-run-action:hover) { color: var(--ad-primary); }
+.step-actions :deep(.step-remove-action:hover) { color: var(--ad-danger); }
 </style>

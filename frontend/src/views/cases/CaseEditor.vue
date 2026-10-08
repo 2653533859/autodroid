@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Upload, VideoPlay, Back, CircleClose } from '@element-plus/icons-vue'
+import { Upload, VideoPlay, Back, CircleClose, Plus } from '@element-plus/icons-vue'
 import { useRoute, useRouter } from 'vue-router'
 import DeviceStage from '@/components/DeviceStage.vue'
 import StepBuilder from '@/components/StepBuilder.vue'
@@ -12,17 +12,22 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 import { deviceStatusLabel as statusLabel, deviceStatusTagType as statusTagType } from '@/utils/statusMeta'
 import api from '@/api'
+import { describeRunSubmission } from '@/utils/uiRunPresentation'
 
 const route = useRoute()
 const router = useRouter()
 const caseStore = useCaseStore()
-const { currentCase, loading, hasUnsavedChanges } = storeToRefs(caseStore)
+const { currentCase, loading, saving, hasUnsavedChanges } = storeToRefs(caseStore)
 
 useUnsavedGuard(hasUnsavedChanges)
 
 const logConsoleRef = ref(null)
 const deviceStageRef = ref(null)
 const isRunning = ref(false)
+const runPhase = ref('')
+const actionsVisible = ref(false)
+const runBusy = computed(() => Boolean(runPhase.value) || saving.value)
+const runLabel = computed(() => ({ saving: '保存中', prechecking: '预检中', submitting: '启动中' }[runPhase.value] || (isRunning.value ? '终止' : (!currentCase.value.id || hasUnsavedChanges.value ? '保存并运行' : '运行'))))
 const activeRun = ref(null)
 const terminatingRun = ref(false)
 let activeRunTimer = null
@@ -31,11 +36,11 @@ const environments = ref([])
 
 // 获取 DeviceStage 的 OCR 框选模式状态
 const ocrCropMode = computed(() => {
-  return deviceStageRef.value?.ocrCropMode?.value || false
+  return deviceStageRef.value?.ocrCropMode || false
 })
 
 const activeImageCropStepUuid = computed(() => {
-  return deviceStageRef.value?.activeImageCropStepUuid?.value || ''
+  return deviceStageRef.value?.activeImageCropStepUuid || ''
 })
 
 const recordMode = computed(() => {
@@ -76,37 +81,44 @@ const goBack = () => {
     router.push('/ui/cases')
 }
 
-const handleRun = async () => {
-  if (isRunning.value) {
-    await terminateActiveRun()
-    return
-  }
-  if (!currentCase.value.id) {
-    ElMessage.warning('请先保存用例')
-    return
-  }
-  
-  if (currentCase.value.steps.length === 0) {
-    ElMessage.warning('用例没有步骤')
-    return
-  }
-  
-  const currentDevice = deviceStageRef.value?.selectedSerial
-  if (currentDevice) {
-    const check = await precheckCaseOnDevice(currentCase.value.id, currentDevice)
-    if (!check.ok) {
-      ElMessage.error(`运行前预检失败: ${check.reason}`)
-      return
+const ensureSaved = async () => {
+  if (!currentCase.value.id || hasUnsavedChanges.value) {
+    runPhase.value = 'saving'
+    if (!await caseStore.saveCase()) return false
+    if (hasUnsavedChanges.value) {
+      ElMessage.warning('保存期间内容发生变化，请再次保存并运行')
+      return false
     }
   }
-  isRunning.value = true
-  activeRun.value = {
-    kind: 'case',
-    target_id: currentCase.value.id,
-    device_serials: currentDevice ? [currentDevice] : []
+  return true
+}
+
+const handleRun = async () => {
+  if (runBusy.value || terminatingRun.value) return
+  if (isRunning.value) return terminateActiveRun()
+  if (!currentCase.value.steps.length) return ElMessage.warning('用例没有步骤')
+  const selectedEnvironment = envId.value
+  const currentDevice = recordingDeviceSerial.value
+  runPhase.value = 'saving'
+  try {
+    if (!await ensureSaved()) return
+    const caseId = currentCase.value.id
+    runPhase.value = 'prechecking'
+    if (currentDevice) {
+      const check = await precheckCaseOnDevice(caseId, currentDevice, selectedEnvironment)
+      if (!check.ok) return ElMessage.error(`运行前预检失败: ${check.reason}`)
+    }
+    runPhase.value = 'submitting'
+    activeRun.value = { kind: 'case', target_id: caseId, device_serials: currentDevice ? [currentDevice] : [] }
+    logConsoleRef.value.connect(caseId, selectedEnvironment, currentDevice)
+    isRunning.value = true
+  } catch (err) {
+    isRunning.value = false
+    activeRun.value = null
+    ElMessage.error('启动失败: ' + err.message)
+  } finally {
+    runPhase.value = ''
   }
-  startActiveRunPolling()
-  logConsoleRef.value?.connect(currentCase.value.id, envId.value, currentDevice)
 }
 
 const runDialogVisible = ref(false)
@@ -127,9 +139,9 @@ const summarizePrecheckFailure = (payload) => {
   return '预检失败'
 }
 
-const precheckCaseOnDevice = async (caseId, serial) => {
+const precheckCaseOnDevice = async (caseId, serial, selectedEnvironment = envId.value) => {
   try {
-    const { data } = await api.precheckTestCase(caseId, envId.value, serial)
+    const { data } = await api.precheckTestCase(caseId, selectedEnvironment, serial)
     if (data?.ok) return { ok: true }
     return { ok: false, reason: summarizePrecheckFailure(data) }
   } catch (err) {
@@ -139,15 +151,22 @@ const precheckCaseOnDevice = async (caseId, serial) => {
 }
 
 const submitMultiRun = async () => {
+  if (runBusy.value || isRunning.value) return
   if (multiRunForm.value.deviceSerials.length === 0) {
     ElMessage.warning('请至少选择一台设备')
     return
   }
+  const selectedEnvironment = envId.value
+  const selectedDevices = [...multiRunForm.value.deviceSerials]
+  runPhase.value = 'saving'
   try {
+    if (!await ensureSaved()) return
+    const caseId = currentCase.value.id
+    runPhase.value = 'prechecking'
     const runnable = []
     const blocked = []
-    for (const serial of multiRunForm.value.deviceSerials) {
-      const check = await precheckCaseOnDevice(currentCase.value.id, serial)
+    for (const serial of selectedDevices) {
+      const check = await precheckCaseOnDevice(caseId, serial, selectedEnvironment)
       if (check.ok) runnable.push(serial)
       else blocked.push({ serial, reason: check.reason })
     }
@@ -158,12 +177,14 @@ const submitMultiRun = async () => {
       return
     }
 
-    const { data } = await api.runTestCaseBatch(currentCase.value.id, envId.value, runnable)
+    runPhase.value = 'submitting'
+    const { data } = await api.runTestCaseBatch(caseId, selectedEnvironment, runnable)
+    const submissionText = describeRunSubmission(data, runnable.length)
     if (blocked.length > 0) {
       const first = blocked[0]
-      ElMessage.warning(`已在 ${runnable.length} 台设备启动；${blocked.length} 台预检失败（示例：${first.serial} - ${first.reason}）`)
+      ElMessage.warning(`${submissionText}；${blocked.length} 台预检失败（示例：${first.serial} - ${first.reason}）`)
     } else {
-      ElMessage.success(`后台已开始在 ${runnable.length} 台设备上执行用例`)
+      ElMessage.success(submissionText)
     }
     activeRun.value = {
       kind: 'case',
@@ -177,6 +198,8 @@ const submitMultiRun = async () => {
     runDialogVisible.value = false
   } catch (err) {
     ElMessage.error('启动批量执行失败: ' + err.message)
+  } finally {
+    runPhase.value = ''
   }
 }
 
@@ -193,11 +216,7 @@ const openMultiRunDialog = async () => {
 }
 
 const handleRunCommand = async (command) => {
-  if (command === 'multi') {
-    if (!currentCase.value.id) {
-      ElMessage.warning('请先保存用例')
-      return
-    }
+  if (command === 'multi' && !runBusy.value && !isRunning.value) {
     if (currentCase.value.steps.length === 0) {
       ElMessage.warning('用例没有步骤')
       return
@@ -219,7 +238,15 @@ const handleRunComplete = (data) => {
   }
 }
 
+const handleRunError = (data) => {
+  isRunning.value = false
+  activeRun.value = null
+  stopActiveRunPolling()
+  ElMessage.error(data?.message || '执行连接失败，请检查日志后重试')
+}
+
 const handleRunStart = (data) => {
+  startActiveRunPolling()
   activeRun.value = {
     kind: 'case',
     target_id: currentCase.value.id,
@@ -311,11 +338,11 @@ const handleRequestImageCrop = (step) => {
   }
 }
 
+const recordingDevices = computed(() => deviceStageRef.value?.recordingDevices || [])
 const connectedRunDevices = computed(() => deviceStageRef.value?.connectedDevices || [])
-const recordingDeviceSerial = computed(() => {
-  const selected = deviceStageRef.value?.selectedSerial
-  if (!selected) return ''
-  return typeof selected === 'string' ? selected : (selected.value || '')
+const recordingDeviceSerial = computed({
+  get: () => deviceStageRef.value?.selectedSerial || '',
+  set: serial => deviceStageRef.value?.selectDevice(serial)
 })
 const isDeviceSelectable = (device) => device?.status === 'IDLE'
 
@@ -339,112 +366,47 @@ onUnmounted(() => {
 
 <template>
   <el-container class="main-layout">
-    <!-- Global Header is in App.vue -->
-    
-    <el-container class="content-container">
-      <!-- Removed CaseExplorer (Left Pane) -->
-      
-      <el-main class="center-pane">
-        <div class="center-wrapper">
-          <DeviceStage 
-            ref="deviceStageRef"
-            :env-id="envId"
-            @update-loading="loading = $event"
-          >
-            <template #left>
-              <div class="header-left">
-                  <el-button :icon="Back" link @click="goBack" class="back-btn" />
-                  <div class="logo">
-                     <el-input 
-                       v-model="currentCase.name" 
-                       placeholder="请输入用例名称" 
-                       class="title-input"
-                     />
-                  </div>
-              </div>
-            </template>
-            <template #before-refresh>
-              <el-select
-                v-model="envId"
-                placeholder="运行环境"
-                style="width: 85px;"
-              >
-                <el-option
-                  v-for="env in environments"
-                  :key="env.id"
-                  :label="env.name"
-                  :value="env.id"
-                />
-              </el-select>
-            </template>
-          </DeviceStage>
-          <LogConsole 
-            ref="logConsoleRef" 
-            :case-id="currentCase.id"
-            @run-start="handleRunStart"
-            @run-complete="handleRunComplete"
-          />
-        </div>
-      </el-main>
-      
-      <el-aside width="220px" class="general-pane">
-        <GeneralStepsPanel
-          :loading="loading"
-          :device-serial="recordingDeviceSerial"
-          :ocr-crop-mode="ocrCropMode"
-          :record-mode="recordMode"
-          :include-screenshot="includeInteractionScreenshot"
-          @action-start="loading = true"
-          @action-end="loading = false"
-          @refresh-needed="handleRefreshNeeded"
-        />
-      </el-aside>
-
-      <el-aside width="350px" class="right-pane">
-        <StepBuilder
-          :env-id="envId"
-          :device-serial="recordingDeviceSerial"
-          :active-image-crop-step-uuid="activeImageCropStepUuid"
-          :include-screenshot="includeInteractionScreenshot"
-          @refresh-needed="handleRefreshNeeded"
-          @request-ocr-crop="handleRequestOcrCrop"
-          @request-image-crop="handleRequestImageCrop"
-        >
-          <template #header-actions>
-            <el-dropdown
-              split-button
-              :type="isRunning ? 'danger' : 'primary'"
-              @click="handleRun"
-              @command="handleRunCommand"
-              :disabled="!currentCase.id || terminatingRun"
-              :icon="isRunning ? CircleClose : VideoPlay"
-              style="margin-right: 12px"
-            >
-              {{ isRunning ? '终止' : '运行' }}
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="multi" :disabled="isRunning">选择多设备运行</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            <el-button 
-              :icon="Upload" 
-              type="success" 
-              @click="caseStore.saveCase" 
-              :loading="loading"
-            >
-              保存
-            </el-button>
-          </template>
+    <header class="editor-header ad-surface">
+      <el-button :icon="Back" text aria-label="返回用例列表" @click="goBack" />
+      <el-input v-model="currentCase.name" placeholder="请输入用例名称" class="title-input" :disabled="runBusy" aria-label="用例名称" />
+      <span class="save-state" role="status">{{ saving ? '保存中…' : hasUnsavedChanges ? '未保存' : currentCase.id ? '已保存' : '新用例' }}</span>
+      <div class="editor-run-controls">
+        <el-select v-model="envId" placeholder="运行环境" class="environment-select" :disabled="runBusy" aria-label="运行环境">
+          <el-option v-for="env in environments" :key="env.id" :label="env.name" :value="env.id" />
+        </el-select>
+        <el-select v-model="recordingDeviceSerial" placeholder="选择调试设备" class="editor-device-select" :disabled="runBusy" aria-label="调试设备">
+          <el-option v-for="d in recordingDevices" :key="d.serial" :label="d.custom_name || d.market_name || d.model || d.serial" :value="d.serial" :disabled="!deviceStageRef?.canObserveDevice(d)" />
+        </el-select>
+        <el-button :icon="Upload" @click="caseStore.saveCase" :loading="saving" :disabled="runBusy && !saving">保存</el-button>
+        <el-dropdown split-button :type="isRunning ? 'danger' : 'primary'" @click="handleRun" @command="handleRunCommand" :disabled="runBusy || terminatingRun" :icon="isRunning ? CircleClose : VideoPlay">
+          {{ runLabel }}
+          <template #dropdown><el-dropdown-menu><el-dropdown-item command="multi" :disabled="isRunning">选择多设备运行</el-dropdown-item></el-dropdown-menu></template>
+        </el-dropdown>
+      </div>
+    </header>
+    <div class="content-container">
+      <section class="center-pane">
+        <DeviceStage ref="deviceStageRef" :env-id="envId" hide-device-select @update-loading="loading = $event">
+          <template #left><span class="pane-title">设备画面</span></template>
+        </DeviceStage>
+      </section>
+      <section class="right-pane">
+        <StepBuilder :env-id="envId" :device-serial="recordingDeviceSerial" :active-image-crop-step-uuid="activeImageCropStepUuid" :include-screenshot="includeInteractionScreenshot" @refresh-needed="handleRefreshNeeded" @request-ocr-crop="handleRequestOcrCrop" @request-image-crop="handleRequestImageCrop">
+          <template #header-actions><el-button :icon="Plus" @click="actionsVisible = true">添加动作</el-button></template>
         </StepBuilder>
-      </el-aside>
-    </el-container>
+      </section>
+    </div>
+    <LogConsole ref="logConsoleRef" :case-id="currentCase.id" @run-start="handleRunStart" @run-complete="handleRunComplete" @run-error="handleRunError" />
+    <el-drawer v-model="actionsVisible" title="添加通用动作" size="360px" :modal="false" :lock-scroll="false">
+      <GeneralStepsPanel :loading="loading" :device-serial="recordingDeviceSerial" :ocr-crop-mode="ocrCropMode" :record-mode="recordMode" :include-screenshot="includeInteractionScreenshot" @action-added="actionsVisible = false" @action-start="loading = true" @action-end="loading = false" @refresh-needed="handleRefreshNeeded" />
+    </el-drawer>
 
     <!-- 多设备运行弹窗 -->
     <el-dialog
       v-model="runDialogVisible"
       title="选择多设备执行"
       width="400px"
+      :close-on-click-modal="!runBusy" :close-on-press-escape="!runBusy" :show-close="!runBusy"
     >
       <el-form v-loading="runDialogLoading" :model="multiRunForm" label-width="100px">
         <el-form-item label="设备列表">
@@ -454,7 +416,7 @@ onUnmounted(() => {
             multiple
             collapse-tags
             collapse-tags-tooltip
-            :disabled="runDialogLoading"
+            :disabled="runDialogLoading || runBusy"
             style="width: 100%"
           >
             <el-option
@@ -468,7 +430,7 @@ onUnmounted(() => {
                 <span>{{ d.custom_name || d.market_name || d.model || d.serial }}</span>
                 <div style="display: flex; align-items: center; gap: 6px;">
                   <el-tag :type="statusTagType(d.status)" size="small">{{ statusLabel(d.status) }}</el-tag>
-                  <span v-if="deviceUnavailableReason(d)" style="font-size: 12px; color: #e6a23c;">
+                  <span v-if="deviceUnavailableReason(d)" style="font-size: 12px; color: var(--ad-warning);">
                     {{ deviceUnavailableReason(d) }}
                   </span>
                 </div>
@@ -482,8 +444,8 @@ onUnmounted(() => {
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="runDialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="runDialogLoading" :disabled="runDialogLoading" @click="submitMultiRun">确定执行</el-button>
+          <el-button :disabled="runBusy" @click="runDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="runDialogLoading || runBusy" :disabled="runDialogLoading || runBusy" @click="submitMultiRun">{{ runPhase ? runLabel : '确定执行' }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -491,109 +453,19 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.main-layout {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: #f2f3f5;
-  overflow: hidden;
-}
-
-.run-warning-hint {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #e6a23c;
-}
-
-/* app-header removed */
-
-.header-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.back-btn {
-    color: #606266;
-    font-size: 20px;
-}
-.back-btn:hover {
-    color: #409eff;
-}
-
-.logo {
-  font-weight: bold;
-  color: #303133;
-  display: flex;
-  align-items: center;
-}
-
-.title-input {
-  width: 130px;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-.title-input :deep(.el-input__wrapper) {
-  background-color: transparent !important;
-  box-shadow: none !important;
-  padding-left: 0;
-}
-
-.title-input :deep(.el-input__inner) {
-  color: #303133;
-  font-weight: bold;
-}
-
-.title-input :deep(.el-input__wrapper:hover),
-.title-input :deep(.el-input__wrapper.is-focus) {
-  box-shadow: none !important;
-  background-color: rgba(0, 0, 0, 0.05) !important;
-}
-
-.header-center {
-  flex: 1;
-}
-
-.content-container {
-  flex: 1;
-  overflow: hidden;
-  background: #f2f3f5;
-  padding: 10px;
-  gap: 10px;
-}
-
-.right-pane {
-  overflow: hidden;
-  height: 100%;
-  background: #fff;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-}
-
-.general-pane {
-    overflow: hidden;
-    height: 100%;
-    background: #fff;
-    border-radius: 4px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1); 
-}
-
-.center-pane {
-  padding: 0;
-  overflow: hidden;
-  background: transparent;
-}
-
-.center-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  gap: 10px;
-}
-
-.center-wrapper > :first-child {
-  flex: 1;
-  min-height: 0;
-}
+.main-layout { height: 100%; min-height: 0; padding: 16px; gap: 12px; background: var(--ad-bg); display: flex; flex-direction: column; overflow: hidden; }
+.editor-header { display: flex; align-items: center; gap: 8px; padding: 8px 12px; flex-shrink: 0; border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); background: var(--ad-surface); }
+.title-input { flex: 1; min-width: 120px; max-width: 320px; font-size: 16px; font-weight: 600; }
+.title-input :deep(.el-input__wrapper) { box-shadow: none; background: transparent; }
+.save-state { color: var(--ad-muted); font-size: 12px; white-space: nowrap; }
+.editor-run-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.environment-select { width: 116px; }
+.editor-device-select { width: 170px; }
+.content-container { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr); gap: 12px; flex: 1; min-height: 0; overflow: hidden; }
+.center-pane, .right-pane { min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); background: var(--ad-surface); }
+.center-pane { display: flex; }
+.center-pane > * { flex: 1; min-width: 0; }
+.pane-title { font-size: 13px; color: var(--ad-text); font-weight: 600; }
+.run-warning-hint { margin-top: 6px; font-size: 12px; color: var(--ad-warning); }
+@media (max-width: 1180px) { .editor-header { flex-wrap: wrap; } .editor-run-controls { flex-wrap: wrap; } }
 </style>

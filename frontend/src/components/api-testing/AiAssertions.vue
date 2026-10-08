@@ -68,7 +68,7 @@ function dismiss(){if(callId.value&&suggestions.value.length)feedback('dismissed
 </script>
 <template>
   <span v-if="available" class="ai-actions"><el-button link type="primary" :disabled="disabled||!debugSessionId||!result?.detail?.response" @click="open=true">AI 校验建议</el-button><el-button v-if="applied?.stepId===stepId" link :disabled="disabled" @click="undo">撤销 AI 建议</el-button></span>
-  <el-dialog v-model="open" title="AI 校验建议" width="min(740px,95vw)" :close-on-click-modal="false" @closed="dismiss">
+  <el-dialog class="ad-dialog" v-model="open" title="AI 校验建议" width="min(740px,95vw)" :close-on-click-modal="false" @closed="dismiss">
     <p class="hint">确认业务期望后再采用。生成建议不会发送业务请求。</p>
     <el-input v-model="goal" placeholder="可选：说明想验证的业务规则，例如查询结果应与创建订单一致" maxlength="2000" type="textarea" :rows="2" aria-label="校验目标" />
     <el-button class="generate" :loading="busy" :disabled="disabled||applying" @click="generate">生成建议</el-button>
@@ -79,4 +79,5 @@ function dismiss(){if(callId.value&&suggestions.value.length)feedback('dismissed
     <template #footer><el-button @click="dismiss">关闭</el-button><el-button type="primary" :loading="applying" :disabled="!chosen.length||stale||busy||disabled" @click="apply">应用选中的 {{ chosen.length }} 条建议</el-button></template>
   </el-dialog>
 </template>
-<style scoped>.ai-actions{display:inline-flex;gap:8px;flex-wrap:wrap}.generate{margin:12px 0}.hint,small{font-size:12px;color:#909399;line-height:1.6}.suggestions{max-height:42vh;overflow:auto}.suggestion{padding:12px 0;border-bottom:1px solid #ebeef5}.suggestion p{font-size:13px;margin:6px 0;overflow-wrap:anywhere}.suggestion :deep(.el-checkbox){height:auto;white-space:normal}.suggestion :deep(.el-checkbox__label){white-space:normal;overflow-wrap:anywhere}</style>
+<style scoped>.ai-actions{display:inline-flex;gap:8px;flex-wrap:wrap}.generate{margin:12px 0}.hint,small{font-size:12px;color:var(--ad-muted);line-height:1.6}.suggestions{max-height:42vh;overflow:auto}.suggestion{padding:12px 0;border-bottom:1px solid var(--ad-border)}.suggestion p{font-size:13px;margin:6px 0;overflow-wrap:anywhere}.suggestion :deep(.el-checkbox){height:auto;white-space:normal}.suggestion :deep(.el-checkbox__label){white-space:normal;overflow-wrap:anywhere}@media(max-width:760px){.hint,small,.suggestion p{font-size:14px}.suggestion{padding:12px}.tools{flex-wrap:wrap}}
+</style>

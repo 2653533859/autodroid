@@ -86,6 +86,7 @@ const handleRunClick = () => {
 }
 
 const handleConfirmRun = async () => {
+    if (submitting.value) return
     if (selectedDevices.value.length === 0) {
         return ElMessage.warning('请至少选择一台设备')
     }
@@ -229,7 +230,7 @@ onUnmounted(() => {
                                 </el-form-item>
                             </div>
 
-                            <div class="form-section-title" style="margin-top: 16px;">高级选项</div>
+                            <details class="advanced-options"><summary>高级选项 · 容错、日志与事件配比</summary>
 
                             <div class="options-row">
                                 <el-form-item label="容错策略">
@@ -279,6 +280,7 @@ onUnmounted(() => {
                                     <span v-if="pctSum > 100" class="pct-warn">总和超过 100%，系统将自动归一化</span>
                                 </div>
                             </div>
+                            </details>
                         </el-form>
                     </div>
                 </div>
@@ -306,7 +308,7 @@ onUnmounted(() => {
         </div>
 
         <!-- 设备选择弹窗 -->
-        <el-dialog v-model="deviceDialogVisible" title="选择设备" width="440px" destroy-on-close>
+        <el-dialog v-model="deviceDialogVisible" title="选择设备" width="min(440px, calc(100vw - 24px))" destroy-on-close>
             <div v-loading="devicesLoading">
                 <el-select v-model="selectedDevices" multiple collapse-tags placeholder="选择目标设备" style="width: 100%">
                     <el-option
@@ -328,31 +330,34 @@ onUnmounted(() => {
             </div>
             <template #footer>
                 <el-button @click="deviceDialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="handleConfirmRun" :disabled="selectedDevices.length === 0">确认运行</el-button>
+                <el-button type="primary" :loading="submitting" @click="handleConfirmRun" :disabled="selectedDevices.length === 0">确认运行</el-button>
             </template>
         </el-dialog>
     </div>
 </template>
 
 <style scoped>
+.advanced-options { border-top: 1px solid var(--ad-border); margin-top: 12px; padding-top: 12px; }
+.advanced-options summary { cursor: pointer; color: var(--ad-text); font-size: 13px; font-weight: 600; padding-bottom: 12px; }
+
 .fastbot-container {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f2f3f5;
+    background: var(--ad-bg);
 }
 
 .content-wrapper {
     flex: 1;
-    padding: 10px;
+    padding: 16px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .config-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .card-header {
@@ -364,12 +369,12 @@ onUnmounted(() => {
 .card-title {
     font-size: 15px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .config-body {
     display: flex;
-    gap: 30px;
+    gap: 16px;
     align-items: flex-start;
 }
 
@@ -379,23 +384,23 @@ onUnmounted(() => {
 
 .form-row {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     flex-wrap: wrap;
 }
 
 .unit-text {
     margin-left: 8px;
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 13px;
 }
 
 .form-section-title {
     font-size: 13px;
-    color: #909399;
+    color: var(--ad-muted);
     font-weight: 600;
     margin-bottom: 12px;
     padding-bottom: 6px;
-    border-bottom: 1px solid #ebeef5;
+    border-bottom: 1px solid var(--ad-border);
 }
 
 .options-row {
@@ -419,7 +424,7 @@ onUnmounted(() => {
 }
 
 .monitor-tip {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
 }
 
@@ -430,7 +435,7 @@ onUnmounted(() => {
 }
 
 .status-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .status-row {
@@ -442,34 +447,34 @@ onUnmounted(() => {
 .status-info {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 14px;
+    gap: 8px;
+    font-size: 13px;
 }
 
 .status-label {
-    color: #909399;
+    color: var(--ad-muted);
 }
 
 .pkg-mono {
     font-family: monospace;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .crash-badge {
-    color: #F56C6C;
+    color: var(--ad-danger);
     font-weight: 600;
     font-size: 13px;
 }
 
 .anr-badge {
-    color: #E6A23C;
+    color: var(--ad-warning);
     font-weight: 600;
     font-size: 13px;
 }
 
 .no-device-tip {
     text-align: center;
-    color: #909399;
+    color: var(--ad-muted);
     padding: 20px 0;
     font-size: 13px;
 }
@@ -484,14 +489,21 @@ onUnmounted(() => {
 
 .pct-summary {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     margin-top: 4px;
 }
 
 .pct-warn {
-    color: #E6A23C;
+    color: var(--ad-warning);
     font-weight: 600;
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

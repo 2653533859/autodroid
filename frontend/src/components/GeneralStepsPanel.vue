@@ -31,7 +31,7 @@ const caseStore = useCaseStore()
 const { currentCase } = storeToRefs(caseStore)
 const DEFAULT_PACKAGE = 'com.ehaier.zgq.shop.mall'
 const packageName = ref(DEFAULT_PACKAGE)
-const emit = defineEmits(['action-start', 'action-end', 'refresh-needed'])
+const emit = defineEmits(['action-start', 'action-end', 'refresh-needed', 'action-added'])
 const hasSelectedDevice = computed(() => !!props.deviceSerial)
 
 // Sync packageName from case steps (override default if case has app steps)
@@ -81,6 +81,11 @@ const handleClone = (item) => {
   }
 }
 
+const addAction = (item) => {
+  caseStore.addStep(handleClone(item))
+  emit('action-added')
+}
+
 // Execute Action Immediately
 const executeAction = async (action, data = '') => {
   if (props.loading) return
@@ -118,7 +123,7 @@ const executeAction = async (action, data = '') => {
 <template>
   <div class="general-panel">
     <div class="panel-header">通用步骤</div>
-    <div v-if="!hasSelectedDevice" class="panel-hint">请先在中间设备区选择调试设备，才可执行录制动作。</div>
+    <div v-if="!hasSelectedDevice" class="panel-hint">选择调试设备后可直接执行；下方动作可随时添加到步骤。</div>
     
     <div class="panel-section">
       <div class="section-title">应用管理</div>
@@ -153,7 +158,7 @@ const executeAction = async (action, data = '') => {
 
     <div class="panel-section">
       <div class="section-title">
-        <el-icon><Rank /></el-icon> 拖拽添加 (不执行)
+        <el-icon><Rank /></el-icon> 点击或拖拽添加（不执行）
       </div>
       <VueDraggable
         v-model="draggableSteps"
@@ -162,7 +167,7 @@ const executeAction = async (action, data = '') => {
         :sort="false"
         class="drag-list"
       >
-        <div v-for="item in draggableSteps" :key="item.action + item.selector" class="drag-item">
+        <div v-for="item in draggableSteps" :key="item.action + item.selector" class="drag-item" role="button" tabindex="0" @click="addAction(item)" @keydown.enter="addAction(item)" @keydown.space.prevent="addAction(item)">
           <component :is="item.icon" class="item-icon" />
           <span>{{ item.description }}</span>
         </div>
@@ -174,8 +179,8 @@ const executeAction = async (action, data = '') => {
 <style scoped>
 .general-panel {
   height: 100%;
-  background: #fff;
-  border-left: 1px solid #e4e7ed;
+  background: var(--ad-surface);
+  border-left: none;
   display: flex;
   flex-direction: column;
 }
@@ -183,9 +188,9 @@ const executeAction = async (action, data = '') => {
 .panel-header {
   padding: 12px 20px;
   font-weight: 600;
-  font-size: 14px;
-  border-bottom: 1px solid #ebeef5;
-  background: #fafafa;
+  font-size: 13px;
+  border-bottom: 1px solid var(--ad-border);
+  background: var(--ad-bg);
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -197,20 +202,20 @@ const executeAction = async (action, data = '') => {
   margin: 8px 12px 0;
   padding: 8px 10px;
   font-size: 12px;
-  color: #e6a23c;
-  background: #fdf6ec;
-  border: 1px solid #f5dab1;
+  color: var(--ad-warning);
+  background: var(--ad-bg);
+  border: 1px solid var(--ad-border);
   border-radius: 6px;
 }
 
 .panel-section {
   padding: 12px;
-  border-bottom: 1px solid #f2f6fc;
+  border-bottom: 1px solid var(--ad-bg);
 }
 
 .section-title {
   font-size: 12px;
-  color: #909399;
+  color: var(--ad-muted);
   margin-bottom: 8px;
   display: flex;
   align-items: center;
@@ -241,19 +246,19 @@ const executeAction = async (action, data = '') => {
   display: flex;
   align-items: center;
   padding: 8px;
-  background: #f5f7fa;
-  border: 1px solid #e4e7ed;
+  background: var(--ad-bg);
+  border: 1px solid var(--ad-border);
   border-radius: 4px;
   cursor: grab;
   font-size: 12px;
-  color: #606266;
+  color: var(--ad-muted);
   gap: 8px;
 }
 
 .drag-item:hover {
-  background: #ecf5ff;
-  border-color: #c6e2ff;
-  color: #409eff;
+  background: var(--ad-primary-soft);
+  border-color: var(--ad-primary-soft);
+  color: var(--ad-primary);
 }
 
 .drag-item:active {

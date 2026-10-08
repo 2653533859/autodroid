@@ -79,6 +79,6 @@ const removeVariable = (index) => {
 }
 
 .separator {
-  color: #909399;
+  color: var(--ad-muted);
 }
 </style>

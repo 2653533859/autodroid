@@ -26,8 +26,8 @@ const { setMode } = useClientMode()
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #303133;
-  background: #f6f7f9;
+  color: var(--ad-text);
+  background: var(--ad-bg);
 }
 
 .notice-icon {
@@ -37,8 +37,8 @@ const { setMode } = useClientMode()
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--ad-primary);
+  background: var(--ad-primary-soft);
   font-size: 26px;
   margin-bottom: 16px;
 }
@@ -51,7 +51,7 @@ const { setMode } = useClientMode()
 .mobile-unavailable p {
   margin: 0 0 22px;
   max-width: 320px;
-  color: #606266;
+  color: var(--ad-muted);
   font-size: 14px;
   line-height: 1.6;
 }

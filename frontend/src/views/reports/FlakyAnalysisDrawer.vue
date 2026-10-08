@@ -1,4 +1,5 @@
 <script setup>
+import { chartColors } from '@/utils/chartTheme'
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
@@ -7,16 +8,19 @@ import { runStatusTagType, runStatusLabel } from '@/utils/statusMeta'
 
 const visible = defineModel({ type: Boolean, default: false })
 
+const loadError = ref('')
 const loading = ref(false)
 const days = ref(30)
 const report = ref(null)
 
 const fetchReport = async () => {
     loading.value = true
-    try {
+    loadError.value = ''
+  try {
         const { data } = await api.getFlakyAnalysis({ days: days.value, limit: 20 })
         report.value = data
     } catch (err) {
+    loadError.value = '获取稳定性分析失败，请重试'
         ElMessage.error('获取稳定性分析失败：' + (err.response?.data?.detail || err.message))
     } finally {
         loading.value = false
@@ -36,9 +40,9 @@ const scoreTagType = (score) => {
 }
 
 const passRateColor = (rate) => {
-    if (rate >= 90) return '#67C23A'
-    if (rate >= 60) return '#E6A23C'
-    return '#F56C6C'
+    if (rate >= 90) return chartColors.success
+    if (rate >= 60) return chartColors.warning
+    return chartColors.danger
 }
 
 const formatTime = (time) => (time ? dayjs(time).format('MM-DD HH:mm') : '-')
@@ -55,9 +59,10 @@ const parseStepName = (name) => {
     <el-drawer
         v-model="visible"
         title="稳定性分析（Flaky Top）"
-        size="62%"
+        size="min(960px, 100vw)"
         destroy-on-close
     >
+        <el-alert v-if="loadError" :title="loadError" type="error" :closable="false"><el-button link @click="fetchReport()">重新加载</el-button></el-alert>
         <div class="flaky-toolbar">
             <span class="flaky-hint">
                 统计近 N 天已完结执行（不含终止），按"状态翻转率 + 失败率接近 50%"加权评分，样本 &lt; {{ report?.min_samples || 5 }} 次的场景不参与排名。
@@ -75,7 +80,6 @@ const parseStepName = (name) => {
                 v-if="report?.items?.length"
                 :data="report.items"
                 size="small"
-                :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
             >
                 <el-table-column type="index" label="#" width="46" align="center" />
                 <el-table-column prop="scenario_name" label="场景" min-width="180" show-overflow-tooltip />
@@ -112,7 +116,7 @@ const parseStepName = (name) => {
                     <template #default="{ row }">{{ formatTime(row.last_time) }}</template>
                 </el-table-column>
             </el-table>
-            <el-empty v-else-if="!loading" description="当前窗口内未发现不稳定场景" :image-size="80" />
+            <el-empty v-else-if="!loading && !loadError" description="当前窗口内未发现不稳定场景" :image-size="80" />
 
             <template v-if="report?.step_items?.length">
                 <el-divider />
@@ -120,7 +124,6 @@ const parseStepName = (name) => {
                 <el-table
                     :data="report.step_items"
                     size="small"
-                    :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
                 >
                     <el-table-column type="index" label="#" width="46" align="center" />
                     <el-table-column prop="scenario_name" label="场景" min-width="130" show-overflow-tooltip />
@@ -167,27 +170,34 @@ const parseStepName = (name) => {
 
 .flaky-hint {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     line-height: 1.6;
 }
 
 .flaky-section-title {
     margin: 0 0 10px;
-    font-size: 14px;
-    color: #303133;
+    font-size: 13px;
+    color: var(--ad-text);
 }
 
 .flaky-flips {
-    color: #E6A23C;
+    color: var(--ad-warning);
     font-weight: 600;
 }
 
 .flaky-case-name {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
     margin-right: 4px;
 }
 
-.flaky-pass { color: #67C23A; font-weight: 600; }
-.flaky-fail { color: #F56C6C; font-weight: 600; }
+.flaky-pass { color: var(--ad-success); font-weight: 600; }
+.flaky-fail { color: var(--ad-danger); font-weight: 600; }
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
+}
 </style>

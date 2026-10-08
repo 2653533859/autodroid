@@ -4,9 +4,10 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 import api from '@/api'
-import { runStatusTagType as statusTagType } from '@/utils/statusMeta'
+import { runStatusTagType as statusTagType, runStatusLabel as statusLabel } from '@/utils/statusMeta'
 import { useClientMode } from '@/composables/useClientMode'
 import VChart from 'vue-echarts'
+import { chartTheme, chartColors } from '@/utils/chartTheme'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, PieChart } from 'echarts/charts'
@@ -36,7 +37,8 @@ const filters = reactive({
 })
 
 const autoRefresh = ref(true)
-const loading = ref(false)
+const loading = ref(true)
+const loaded = ref(false)
 const errorMessage = ref('')
 
 const emptyOverview = () => ({
@@ -73,25 +75,17 @@ const rangeLabel = computed(() => {
 
 const kpiCards = computed(() => {
   const k = overview.value.kpis || {}
+  const metric = (value) => loaded.value ? value : '—'
   return [
-    { key: 'pass_rate', title: `${rangeLabel.value}通过率`, value: `${Number(k.pass_rate || 0).toFixed(1)}%`, route: '/execution/reports' },
-    { key: 'failed_scenarios', title: `${rangeLabel.value}失败场景数`, value: k.failed_scenarios || 0, route: '/ui/scenarios' },
-    { key: 'idle_devices', title: '当前空闲设备', value: k.idle_devices || 0, route: '/assets/devices' },
-    { key: 'total_executions', title: `${rangeLabel.value}执行总量`, value: k.total_executions || 0, route: '/execution/reports' },
-    { key: 'running_executions', title: '运行中执行数', value: k.running_executions || 0, route: '/execution/reports' },
-    { key: 'active_tasks', title: '启用任务数', value: k.active_tasks || 0, route: '/execution/tasks' },
+    { key: 'running', title: '正在运行', value: metric(k.running_executions || 0), route: '/execution/reports' },
+    { key: 'failed', title: `${rangeLabel.value}失败场景`, value: metric(k.failed_scenarios || 0), route: '/ui/scenarios' },
+    { key: 'idle', title: '可用设备', value: metric(k.idle_devices || 0), route: '/assets/devices' },
+    { key: 'pass', title: `${rangeLabel.value}通过率`, value: loaded.value && k.total_executions > 0 ? `${Number(k.pass_rate || 0).toFixed(1)}%` : '—', route: '/execution/reports' },
   ]
 })
-
-const mobileKpiCards = computed(() => {
-  const k = overview.value.kpis || {}
-  return [
-    { key: 'running', title: '运行中', value: k.running_executions || 0, route: '/execution/reports' },
-    { key: 'idle', title: '空闲设备', value: k.idle_devices || 0, route: '/assets/devices' },
-    { key: 'pass', title: `${rangeLabel.value}通过率`, value: `${Number(k.pass_rate || 0).toFixed(1)}%`, route: '/execution/reports' },
-    { key: 'failed', title: '失败场景', value: k.failed_scenarios || 0, route: '/ui/scenarios' },
-  ]
-})
+const mobileKpiCards = kpiCards
+const hasExecutions = computed(() => loaded.value && overview.value.kpis.total_executions > 0)
+const runningExecutions = computed(() => (overview.value.recent_executions || []).filter(item => ['RUNNING', 'PENDING', 'QUEUED'].includes(item.status)))
 
 const recentProblemExecutions = computed(() => {
   const problemStatuses = new Set(['FAIL', 'ERROR', 'WARNING'])
@@ -118,32 +112,32 @@ const trendOption = computed(() => {
         type: 'line',
         smooth: true,
         data: trend.map(item => item.total),
-        itemStyle: { color: '#409EFF' },
-        lineStyle: { width: 2, color: '#409EFF' },
+        itemStyle: { color: chartColors.primary },
+        lineStyle: { width: 2, color: chartColors.primary },
       },
       {
         name: '通过',
         type: 'line',
         smooth: true,
         data: trend.map(item => item.pass_count),
-        itemStyle: { color: '#67C23A' },
-        lineStyle: { width: 2, color: '#67C23A' },
+        itemStyle: { color: chartColors.success },
+        lineStyle: { width: 2, color: chartColors.success },
       },
       {
         name: '失败',
         type: 'line',
         smooth: true,
         data: trend.map(item => item.fail_count),
-        itemStyle: { color: '#F56C6C' },
-        lineStyle: { width: 2, color: '#F56C6C' },
+        itemStyle: { color: chartColors.danger },
+        lineStyle: { width: 2, color: chartColors.danger },
       },
       {
         name: '告警',
         type: 'line',
         smooth: true,
         data: trend.map(item => item.warning_count),
-        itemStyle: { color: '#E6A23C' },
-        lineStyle: { width: 2, color: '#E6A23C' },
+        itemStyle: { color: chartColors.warning },
+        lineStyle: { width: 2, color: chartColors.warning },
       },
     ],
   }
@@ -159,19 +153,19 @@ const statusPieOption = computed(() => {
     RUNNING: '运行中',
   }
   const colorMap = {
-    PASS: '#67C23A',
-    WARNING: '#E6A23C',
-    FAIL: '#F56C6C',
-    ERROR: '#D03050',
-    ABORTED: '#909399',
-    RUNNING: '#409EFF',
+    PASS: chartColors.success,
+    WARNING: chartColors.warning,
+    FAIL: chartColors.danger,
+    ERROR: chartColors.danger,
+    ABORTED: chartColors.muted,
+    RUNNING: chartColors.primary,
   }
   const rows = (overview.value.status_distribution || [])
     .filter(item => item.count > 0)
     .map(item => ({
       name: labelMap[item.status] || item.status,
       value: item.count,
-      itemStyle: { color: colorMap[item.status] || '#909399' },
+      itemStyle: { color: colorMap[item.status] || chartColors.muted },
     }))
 
   return {
@@ -216,6 +210,7 @@ const fetchOverview = async ({ silent = false } = {}) => {
       limit_tasks: 8,
     })
     overview.value = { ...emptyOverview(), ...data }
+    loaded.value = true
     errorMessage.value = ''
   } catch (err) {
     const msg = err?.response?.data?.detail || err?.message || '加载运行大盘失败'
@@ -312,11 +307,18 @@ onUnmounted(() => {
       <el-alert
         v-if="errorMessage"
         type="error"
-        :title="errorMessage"
+        title="运行大盘加载失败"
         show-icon
         :closable="false"
         class="error-alert"
-      />
+      >
+        <template #default>
+          <div class="mobile-error-content">
+            <span>{{ errorMessage }}</span>
+            <el-button link type="primary" :loading="loading" @click="fetchOverview()">重试</el-button>
+          </div>
+        </template>
+      </el-alert>
 
       <div class="mobile-kpi-grid">
         <button
@@ -337,7 +339,7 @@ onUnmounted(() => {
           <el-button link type="primary" @click="router.push('/execution/reports')">全部报告</el-button>
         </div>
         <div v-if="recentProblemExecutions.length > 0" class="mobile-execution-list">
-          <article
+          <button type="button"
             v-for="item in recentProblemExecutions"
             :key="item.id"
             class="mobile-execution-item"
@@ -347,10 +349,14 @@ onUnmounted(() => {
               <strong>{{ item.scenario_name || '未命名场景' }}</strong>
               <span>{{ formatDateTime(item.start_time) }} · {{ item.executor_name || 'System' }}</span>
             </div>
-            <el-tag size="small" :type="statusTagType(item.status)">{{ item.status }}</el-tag>
-          </article>
+            <el-tag size="small" :type="statusTagType(item.status)">{{ statusLabel(item.status) }}</el-tag>
+          </button>
         </div>
-        <el-empty v-else description="暂无异常执行" :image-size="80" />
+        <div v-else class="ad-empty-state mobile-inline-empty">
+          <h3>{{ loaded ? '暂无异常执行' : '正在获取运行状态…' }}</h3>
+          <p>{{ loaded ? '当前时间范围内没有失败、告警或排队记录。' : '数据加载完成后会显示需要优先处理的执行。' }}</p>
+          <el-button v-if="errorMessage" link type="primary" @click="fetchOverview()">重新加载</el-button>
+        </div>
       </section>
 
       <section class="mobile-panel">
@@ -358,8 +364,8 @@ onUnmounted(() => {
           <h3>最近执行</h3>
           <el-button link type="primary" @click="router.push('/execution/reports')">查看</el-button>
         </div>
-        <div class="mobile-execution-list">
-          <article
+        <div v-if="overview.recent_executions?.length" class="mobile-execution-list">
+          <button type="button"
             v-for="item in (overview.recent_executions || []).slice(0, 5)"
             :key="item.id"
             class="mobile-execution-item"
@@ -369,346 +375,121 @@ onUnmounted(() => {
               <strong>{{ item.scenario_name || '未命名场景' }}</strong>
               <span>{{ formatDateTime(item.start_time) }} · {{ formatDuration(item.duration) }}</span>
             </div>
-            <el-tag size="small" :type="statusTagType(item.status)">{{ item.status }}</el-tag>
-          </article>
+            <el-tag size="small" :type="statusTagType(item.status)">{{ statusLabel(item.status) }}</el-tag>
+          </button>
+        </div>
+        <div v-else class="ad-empty-state mobile-inline-empty">
+          <h3>{{ loaded ? '暂无执行记录' : '正在获取执行记录…' }}</h3>
+          <p>{{ loaded ? '前往用例或场景列表开始一次执行。' : '请稍候。' }}</p>
+          <el-button v-if="loaded" link type="primary" @click="router.push('/ui/cases')">前往用例库</el-button>
+          <el-button v-else-if="errorMessage" link type="primary" @click="fetchOverview()">重新加载</el-button>
         </div>
       </section>
     </div>
 
     <div v-else class="dashboard-scroll" v-loading="loading">
-      <el-alert
-        v-if="errorMessage"
-        type="error"
-        :title="errorMessage"
-        show-icon
-        :closable="false"
-        class="error-alert"
-      />
-
+      <header class="ad-page-header dashboard-header">
+        <div><h1>运行大盘</h1><p class="dashboard-subtitle">关注异常与当前执行，快速回到工作现场。</p></div>
+        <div class="dashboard-filters">
+          <el-select v-model="filters.range" aria-label="统计时间范围" style="width: 116px">
+            <el-option label="近24小时" value="24h" /><el-option label="近7天" value="7d" /><el-option label="近30天" value="30d" />
+          </el-select>
+          <el-select v-model="filters.platform" aria-label="平台筛选" style="width: 116px">
+            <el-option label="全部平台" value="all" /><el-option label="Android" value="android" /><el-option label="iOS" value="ios" />
+          </el-select>
+          <el-checkbox v-model="autoRefresh">自动刷新</el-checkbox>
+          <el-button :loading="loading" @click="fetchOverview()">刷新</el-button>
+        </div>
+      </header>
+      <el-alert v-if="errorMessage" type="error" :title="errorMessage" :description="loaded ? '当前显示上次成功加载的数据，可点击刷新重试。' : '数据暂时无法加载，请点击刷新重试。'" show-icon :closable="false" />
       <div class="kpi-grid">
-        <el-card
-          v-for="item in kpiCards"
-          :key="item.key"
-          shadow="hover"
-          class="kpi-card"
-          @click="handleKpiClick(item)"
-        >
-          <div class="kpi-title">{{ item.title }}</div>
-          <div class="kpi-value">{{ item.value }}</div>
-        </el-card>
+        <button v-for="item in kpiCards" :key="item.key" class="kpi-card" type="button" @click="handleKpiClick(item)">
+          <span class="kpi-title">{{ item.title }}</span><strong class="kpi-value">{{ item.value }}</strong>
+        </button>
       </div>
-
-      <div class="block-grid two-col">
+      <div v-if="loaded" class="dashboard-summary">{{ rangeLabel }}共 {{ overview.kpis.total_executions }} 次执行 · {{ overview.kpis.active_tasks }} 个启用任务 · 平均耗时 {{ formatDuration(overview.kpis.avg_duration) }}</div>
+      <section class="block-grid activity-grid">
         <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-header">执行趋势</div>
-          </template>
-          <v-chart class="chart-box" :option="trendOption" autoresize />
-        </el-card>
-
-        <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-header">状态分布</div>
-          </template>
-          <v-chart class="chart-box" :option="statusPieOption" autoresize />
-        </el-card>
-      </div>
-
-      <div class="block-grid two-col">
-        <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-header">高失败场景 Top 5</div>
-          </template>
-          <el-table :data="overview.top_failed_scenarios" size="small" empty-text="暂无数据">
-            <el-table-column prop="name" label="场景" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="fail_count" label="失败次数" width="110" />
-            <el-table-column label="失败率" width="100">
-              <template #default="{ row }">
-                {{ Number(row.fail_rate || 0).toFixed(1) }}%
-              </template>
-            </el-table-column>
+          <template #header><div class="panel-header"><span>最近执行</span><el-button link type="primary" @click="router.push('/execution/reports')">全部报告</el-button></div></template>
+          <el-table v-if="overview.recent_executions.length" :data="overview.recent_executions" size="small">
+            <el-table-column label="名称" min-width="170" show-overflow-tooltip><template #default="{ row }"><button class="ad-name-button" @click="handleOpenRecent(row)">{{ row.scenario_name || '未命名场景' }}</button></template></el-table-column>
+            <el-table-column label="状态" width="92"><template #default="{ row }"><el-tag size="small" :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
+            <el-table-column label="开始时间" width="116"><template #default="{ row }">{{ formatDateTime(row.start_time) }}</template></el-table-column>
+            <el-table-column label="耗时" width="80"><template #default="{ row }">{{ formatDuration(row.duration) }}</template></el-table-column>
           </el-table>
+          <div v-else class="ad-empty-state"><h3>{{ loaded ? '开始第一次执行' : '等待执行数据' }}</h3><p>选择用例或场景运行后，在这里查看执行结果。</p><el-button @click="router.push('/ui/cases')">前往用例库</el-button></div>
         </el-card>
-
         <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-header">异常告警</div>
-          </template>
-          <div v-if="!overview.alerts || overview.alerts.length === 0" class="empty-wrap">
-            <el-empty description="暂无告警" :image-size="80" />
-          </div>
-          <div v-else class="alerts-list">
-            <el-alert
-              v-for="(item, idx) in overview.alerts"
-              :key="`${item.type}-${idx}`"
-              :type="alertType(item.level)"
-              :title="item.title"
-              :description="item.message"
-              show-icon
-              :closable="false"
-            />
+          <template #header><div class="panel-header">需要关注</div></template>
+          <div class="alerts-list">
+            <el-alert v-for="(item, idx) in overview.alerts" :key="idx" :type="alertType(item.level)" :title="item.title" :description="item.message" show-icon :closable="false" />
+            <button v-for="item in runningExecutions" :key="item.id" class="activity-link" @click="handleOpenRecent(item)"><span>{{ item.scenario_name || '未命名场景' }}</span><el-tag :type="statusTagType(item.status)" size="small">{{ statusLabel(item.status) }}</el-tag></button>
+            <button v-for="item in recentProblemExecutions" :key="item.id" class="activity-link" @click="handleOpenRecent(item)"><span>{{ item.scenario_name || '未命名场景' }}</span><el-tag :type="statusTagType(item.status)" size="small">{{ statusLabel(item.status) }}</el-tag></button>
+            <p v-if="!overview.alerts.length && !recentProblemExecutions.length && !runningExecutions.length" class="quiet-state">{{ loaded ? '当前没有待处理异常或运行中的任务。' : '正在获取运行状态…' }}</p>
           </div>
         </el-card>
-      </div>
-
-      <div class="block-grid two-col">
+      </section>
+      <section v-if="hasExecutions" class="block-grid two-col">
+        <el-card shadow="never" class="panel-card"><template #header><div class="panel-header">执行趋势</div></template><v-chart class="chart-box" :theme="chartTheme" :option="trendOption" autoresize /></el-card>
+        <el-card shadow="never" class="panel-card"><template #header><div class="panel-header">状态分布</div></template><v-chart class="chart-box" :theme="chartTheme" :option="statusPieOption" autoresize /></el-card>
+      </section>
+      <section class="block-grid two-col">
         <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-header">最近执行</div>
-          </template>
-          <el-table
-            :data="overview.recent_executions"
-            size="small"
-            empty-text="暂无执行记录"
-            @row-click="handleOpenRecent"
-            class="clickable-table"
-          >
-            <el-table-column prop="start_time" label="开始时间" width="130">
-              <template #default="{ row }">{{ formatDateTime(row.start_time) }}</template>
-            </el-table-column>
-            <el-table-column prop="scenario_name" label="场景" min-width="170" show-overflow-tooltip />
-            <el-table-column prop="platform" label="平台" width="86">
-              <template #default="{ row }">{{ (row.platform || '-').toUpperCase() }}</template>
-            </el-table-column>
-            <el-table-column prop="status" label="状态" width="92">
-              <template #default="{ row }">
-                <el-tag size="small" :type="statusTagType(row.status)">{{ row.status }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="duration" label="耗时" width="90">
-              <template #default="{ row }">{{ formatDuration(row.duration) }}</template>
-            </el-table-column>
-            <el-table-column prop="executor_name" label="执行人" width="100" show-overflow-tooltip />
+          <template #header><div class="panel-header">高失败场景</div></template>
+          <el-table :data="overview.top_failed_scenarios" size="small" :empty-text="loaded ? '所选时间范围内暂无失败场景' : '等待数据'">
+            <el-table-column prop="name" label="场景" min-width="160" show-overflow-tooltip /><el-table-column prop="fail_count" label="失败次数" width="90" />
+            <el-table-column label="失败率" width="80"><template #default="{ row }">{{ Number(row.fail_rate || 0).toFixed(1) }}%</template></el-table-column>
           </el-table>
         </el-card>
-
         <el-card shadow="never" class="panel-card">
-          <template #header>
-            <div class="panel-header">即将执行任务</div>
-          </template>
-          <el-table :data="overview.upcoming_tasks" size="small" empty-text="暂无任务">
-            <el-table-column prop="name" label="任务" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="scenario_name" label="场景" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="next_run_time" label="下次执行" width="130">
-              <template #default="{ row }">{{ formatDateTime(row.next_run_time) }}</template>
-            </el-table-column>
-            <el-table-column prop="formatted_schedule" label="调度策略" min-width="160" show-overflow-tooltip />
+          <template #header><div class="panel-header"><span>即将执行任务</span><el-button link @click="router.push('/execution/tasks')">管理任务</el-button></div></template>
+          <el-table :data="overview.upcoming_tasks" size="small" :empty-text="loaded ? '暂无计划中的任务' : '等待数据'">
+            <el-table-column prop="name" label="任务" min-width="140" show-overflow-tooltip /><el-table-column prop="scenario_name" label="场景" min-width="110" show-overflow-tooltip />
+            <el-table-column label="下次执行" width="116"><template #default="{ row }">{{ formatDateTime(row.next_run_time) }}</template></el-table-column>
           </el-table>
         </el-card>
-      </div>
+      </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard-page {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: #f2f3f5;
-}
-
-.dashboard-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 10px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.error-alert {
-  margin-top: 2px;
-}
-
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.kpi-card {
-  cursor: pointer;
-}
-
-.kpi-title {
-  font-size: 13px;
-  color: #606266;
-}
-
-.kpi-value {
-  margin-top: 8px;
-  font-size: 26px;
-  line-height: 1;
-  color: #303133;
-  font-weight: 600;
-}
-
-.block-grid {
-  display: grid;
-  gap: 10px;
-}
-
-.two-col {
-  grid-template-columns: 1fr 1fr;
-}
-
-.panel-card {
-  border-radius: 6px;
-}
-
-.panel-header {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.chart-box {
-  height: 320px;
-  width: 100%;
-}
-
-.alerts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.empty-wrap {
-  min-height: 240px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clickable-table :deep(.el-table__row) {
-  cursor: pointer;
-}
-
-.mobile-dashboard {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #f6f7f9;
-}
-
-.mobile-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.mobile-kpi-card {
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 14px;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mobile-kpi-card span {
-  font-size: 12px;
-  color: #606266;
-}
-
-.mobile-kpi-card strong {
-  font-size: 24px;
-  color: #303133;
-  line-height: 1;
-}
-
-.mobile-panel {
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 14px;
-}
-
-.mobile-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.mobile-panel-header h3 {
-  margin: 0;
-  font-size: 15px;
-  color: #303133;
-}
-
-.mobile-execution-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mobile-execution-item {
-  border: 1px solid #f0f2f5;
-  border-radius: 6px;
-  padding: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  cursor: pointer;
-}
-
-.mobile-execution-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.mobile-execution-main strong {
-  font-size: 14px;
-  color: #303133;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mobile-execution-main span {
-  font-size: 12px;
-  color: #909399;
-}
-
-@media (max-width: 1400px) {
-  .kpi-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 900px) {
-  .two-col {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 720px) {
-  .kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .kpi-value {
-    font-size: 22px;
-  }
-
-  .chart-box {
-    height: 280px;
-  }
-}
+.dashboard-page { height: 100%; min-height: 0; display: flex; flex-direction: column; background: var(--ad-bg); }
+.dashboard-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.dashboard-header { margin-bottom: 0; }
+.dashboard-subtitle { margin: 4px 0 0; color: var(--ad-muted); font-size: 12px; }
+.dashboard-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi-card { border: 1px solid var(--ad-border); background: var(--ad-surface); border-radius: 8px; padding: 16px; text-align: left; }
+.kpi-card:hover { border-color: var(--ad-primary); }
+.kpi-title { display: block; font-size: 12px; color: var(--ad-muted); }
+.kpi-value { display: block; margin-top: 8px; font-size: 26px; line-height: 1.2; color: var(--ad-text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.dashboard-summary { margin-top: -8px; color: var(--ad-muted); font-size: 12px; }
+.block-grid { display: grid; gap: 16px; }
+.two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.activity-grid { grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr); }
+.panel-card { min-width: 0; border-radius: var(--ad-panel-radius); }
+.panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ad-text); min-height: 24px; }
+.chart-box { height: 240px; width: 100%; }
+.alerts-list { display: flex; flex-direction: column; gap: 8px; }
+.activity-link { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; border: 0; border-bottom: 1px solid var(--ad-border); padding: 8px 0; background: transparent; font: inherit; text-align: left; color: var(--ad-text); }
+.activity-link > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.quiet-state { margin: 8px 0; color: var(--ad-muted); }
+.mobile-dashboard { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.mobile-error-content { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mobile-inline-empty { padding: 20px 8px; }
+.mobile-kpi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mobile-kpi-card { border: 1px solid var(--ad-border); border-radius: 8px; background: var(--ad-surface); padding: 14px; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.mobile-kpi-card span { font-size: 14px; color: var(--ad-muted); }
+.mobile-kpi-card strong { font-size: 24px; color: var(--ad-text); line-height: 1.2; }
+.mobile-panel { border: 1px solid var(--ad-border); border-radius: 8px; background: var(--ad-surface); padding: 12px; }
+.mobile-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mobile-panel-header h3 { margin: 0; font-size: 16px; }
+.mobile-execution-list { display: flex; flex-direction: column; gap: 8px; }
+.mobile-execution-item { width: 100%; background: transparent; text-align: left; border: 1px solid var(--ad-border); border-radius: 6px; padding: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; }
+.mobile-execution-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mobile-execution-main strong { font-size: 14px; color: var(--ad-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-execution-main span { font-size: 14px; color: var(--ad-muted); }
+@media (max-width: 1100px) { .activity-grid, .two-col { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>

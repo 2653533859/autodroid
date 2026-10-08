@@ -37,6 +37,7 @@ const activeText = computed(() => {
     <el-button
       class="client-mode-button"
       :class="{ 'is-light': props.light }"
+      :aria-label="`客户端模式：${activeText}`"
       size="small"
       plain
     >
@@ -67,11 +68,8 @@ const activeText = computed(() => {
 }
 
 .client-mode-button.is-light {
-  --el-button-bg-color: transparent;
-  --el-button-border-color: rgba(255, 255, 255, 0.36);
-  --el-button-text-color: #f4f4f5;
-  --el-button-hover-bg-color: rgba(255, 255, 255, 0.08);
-  --el-button-hover-border-color: rgba(255, 255, 255, 0.58);
-  --el-button-hover-text-color: #ffffff;
+  --el-button-bg-color: var(--ad-surface);
+  --el-button-border-color: var(--ad-border);
+  --el-button-text-color: var(--ad-text);
 }
 </style>

@@ -4,12 +4,16 @@ from jinja2 import Environment, BaseLoader, select_autoescape
 
 TEMPLATE = """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ run.scenario_name }} · 接口测试报告</title>
-<style>body{font:14px/1.65 system-ui,sans-serif;color:#263145;background:#f4f6fa;margin:0;padding:32px}
-main{max-width:1100px;margin:auto}header,section{background:white;padding:24px;border-radius:12px;margin-bottom:16px}
-h1{margin:0 0 12px}h2{font-size:18px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f8fa;padding:16px;border-radius:6px}
-.PASS{color:#16834c}.FAIL,.ERROR{color:#c73535}.ABORTED,.SKIP,.UNCHECKED{color:#8a6a28}small{color:#68778d}
-table{width:100%;border-collapse:collapse}td,th{text-align:left;border-bottom:1px solid #e5e9f0;padding:8px}
-summary{cursor:pointer;font-weight:600}footer{color:#68778d}</style><main>
+<style>
+*{box-sizing:border-box}body{font:13px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#202731;background:#f7f9fb;margin:0;padding:24px}
+main{max-width:1100px;margin:auto}header,section{background:#fff;padding:20px 24px;border:1px solid #e5e9ee;border-radius:8px;margin-bottom:12px}
+h1{margin:4px 0 12px;font-size:20px;font-weight:600;overflow-wrap:anywhere}h2{font-size:15px;font-weight:600;margin:0 0 8px}h3{font-size:13px;margin:16px 0 8px}p{margin:8px 0}
+pre{font:12px/1.65 ui-monospace,SFMono-Regular,monospace;white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f9fb;padding:12px;border:1px solid #e5e9ee;border-radius:6px}
+.PASS{color:#39725a}.FAIL,.ERROR{color:#ad4f4a}.ABORTED,.SKIP,.UNCHECKED{color:#936323}small,footer{color:#677381}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}td,th{text-align:left;border-bottom:1px solid #e5e9ee;padding:8px;overflow-wrap:anywhere}th{background:#f7f9fb;color:#677381;font-weight:500}
+summary{cursor:pointer;font-weight:500;padding:8px 0;color:#466b98}details{border-top:1px solid #e5e9ee;margin-top:12px}a{color:#466b98}summary:focus-visible,a:focus-visible{outline:2px solid #466b98;outline-offset:3px}
+@media(max-width:600px){body{padding:8px;font-size:14px}header,section{padding:16px}table{font-size:12px}td,th{padding:6px}summary{min-height:44px}pre{font-size:13px}}
+</style><main>
 <header><small>AutoDroid / 接口自动化</small><h1>{{ run.scenario_name }}</h1>
 <b class="{{ run.status }}">{{ run.status }}</b> · {{ run.env_name }} · {{ run.executor_name }}
 <p>开始：{{ run.started_at or run.created_at }} · 总耗时：{{ '%.0f'|format(run.duration_ms) }} ms</p>

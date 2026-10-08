@@ -37,7 +37,6 @@ defineExpose({ setCurrentRow })
             v-if="jankEvents.length > 0"
             ref="tableRef"
             :data="jankEvents"
-            :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
             :row-class-name="jankEventRowClassName"
             highlight-current-row
             @row-click="$emit('row-click', $event)"
@@ -85,16 +84,23 @@ defineExpose({ setCurrentRow })
 
 <style scoped>
 .events-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .card-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .events-card :deep(.active-jank-row) {
-    --el-table-tr-bg-color: #fff3f0;
+    --el-table-tr-bg-color: color-mix(in srgb, var(--ad-danger) 7%, white);
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

@@ -110,7 +110,7 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
     <el-dialog
         v-model="visible"
         title="执行结果对比"
-        width="82%"
+        width="min(1120px, calc(100vw - 24px))"
         top="4vh"
         destroy-on-close
     >
@@ -173,7 +173,6 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
                     :data="result.steps"
                     size="small"
                     :row-class-name="tableRowClassName"
-                    :header-cell-style="{ background: '#f5f7fa', color: '#606266' }"
                 >
                     <el-table-column label="#" width="52" align="center">
                         <template #default="{ row }">{{ row.step_order }}</template>
@@ -258,8 +257,8 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
 }
 
 .compare-scenario {
-    font-size: 14px;
-    color: #303133;
+    font-size: 13px;
+    color: var(--ad-text);
     margin-bottom: 12px;
 }
 
@@ -272,10 +271,10 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
 
 .meta-card {
     flex: 1;
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--ad-border);
     border-radius: 6px;
     padding: 12px 16px;
-    background: #fafafa;
+    background: var(--ad-bg);
 }
 
 .meta-card-title {
@@ -283,26 +282,26 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
     align-items: center;
     gap: 8px;
     font-weight: 600;
-    color: #303133;
+    color: var(--ad-text);
     margin-bottom: 8px;
 }
 
 .meta-row {
     font-size: 13px;
-    color: #606266;
+    color: var(--ad-muted);
     line-height: 1.9;
 }
 
 .meta-row span {
     display: inline-block;
     width: 64px;
-    color: #909399;
+    color: var(--ad-muted);
 }
 
 .meta-arrow {
     align-self: center;
     font-size: 20px;
-    color: #c0c4cc;
+    color: var(--ad-muted);
 }
 
 .compare-summary {
@@ -320,21 +319,21 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
 }
 
 .step-case {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
 }
 
-.muted { color: #909399; }
+.muted { color: var(--ad-muted); }
 
 .delta-up {
-    color: #F56C6C;
+    color: var(--ad-danger);
     font-style: normal;
     font-size: 12px;
     margin-left: 4px;
 }
 
 .delta-down {
-    color: #67C23A;
+    color: var(--ad-success);
     font-style: normal;
     font-size: 12px;
     margin-left: 4px;
@@ -355,7 +354,7 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
 
 .error-side {
     flex-shrink: 0;
-    color: #909399;
+    color: var(--ad-muted);
 }
 
 .error-code {
@@ -363,14 +362,21 @@ const tableRowClassName = ({ row }) => diffChangeRowClass(row.change)
 }
 
 .error-text {
-    color: #F56C6C;
+    color: var(--ad-danger);
     word-break: break-all;
 }
 
 /* diff 行底色：regressed 红 / fixed 绿 / still-failing 灰红 / added 蓝 / removed 灰 */
-:deep(.el-table .diff-row-regressed) { background-color: #fef0f0 !important; }
-:deep(.el-table .diff-row-fixed) { background-color: #f0f9eb !important; }
-:deep(.el-table .diff-row-still-failing) { background-color: #faf0f0 !important; }
-:deep(.el-table .diff-row-added) { background-color: #ecf5ff !important; }
-:deep(.el-table .diff-row-removed) { background-color: #f4f4f5 !important; }
+:deep(.el-table .diff-row-regressed) { background-color: color-mix(in srgb, var(--ad-danger) 7%, white) !important; }
+:deep(.el-table .diff-row-fixed) { background-color: color-mix(in srgb, var(--ad-success) 7%, white) !important; }
+:deep(.el-table .diff-row-still-failing) { background-color: color-mix(in srgb, var(--ad-danger) 6%, white) !important; }
+:deep(.el-table .diff-row-added) { background-color: var(--ad-primary-soft) !important; }
+:deep(.el-table .diff-row-removed) { background-color: var(--ad-bg) !important; }
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
+}
 </style>

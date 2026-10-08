@@ -1,18 +1,112 @@
-* {
-  box-sizing: border-box;
+/* Precise light. Root tokens also reach teleported controls. */
+:root {
+  color-scheme: light;
+  --ad-bg: #f7f9fb; --ad-surface: #fff; --ad-sidebar: #f4f6f8;
+  --ad-text: #202731; --ad-muted: #677381; --ad-border: #e5e9ee;
+  --ad-primary: #466b98; --ad-primary-soft: #e8eff7;
+  --ad-success: #39725a; --ad-success-soft: #edf5f0;
+  --ad-warning: #936323; --ad-warning-soft: #faf3e8;
+  --ad-danger: #ad4f4a; --ad-danger-soft: #fbefee;
+  --ad-radius: 6px; --ad-panel-radius: 8px;
+  --ad-space-1: 4px; --ad-space-2: 8px; --ad-space-3: 12px; --ad-space-4: 16px; --ad-space-6: 24px;
+  --ad-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --el-font-family: var(--ad-font); --el-font-size-base: 13px; --el-font-size-small: 12px; --el-font-size-extra-small: 12px;
+  --el-font-size-large: 16px; --el-font-size-extra-large: 20px;
+  --el-color-primary: var(--ad-primary); --el-color-primary-light-3: #7e98b7; --el-color-primary-light-5: #a3b5cc; --el-color-primary-light-7: #c8d3e0; --el-color-primary-light-8: #dae3ed; --el-color-primary-light-9: var(--ad-primary-soft); --el-color-primary-dark-2: #38567a;
+  --el-color-success: var(--ad-success); --el-color-success-light-3: #749c8c; --el-color-success-light-5: #a0bbaf; --el-color-success-light-7: #c6d8cf; --el-color-success-light-8: #dbe7e0; --el-color-success-light-9: var(--ad-success-soft); --el-color-success-dark-2: #2e5b48;
+  --el-color-warning: var(--ad-warning); --el-color-warning-light-3: #b79765; --el-color-warning-light-5: #cfb792; --el-color-warning-light-7: #e6d9c5; --el-color-warning-light-8: #eee5d6; --el-color-warning-light-9: var(--ad-warning-soft); --el-color-warning-dark-2: #76501c;
+  --el-color-danger: var(--ad-danger); --el-color-danger-light-3: #c78a87; --el-color-danger-light-5: #dab3b0; --el-color-danger-light-7: #ebd2d0; --el-color-danger-light-8: #f3e1df; --el-color-danger-light-9: var(--ad-danger-soft); --el-color-danger-dark-2: #8b3f3b;
+  --el-color-error: var(--ad-danger); --el-color-info: var(--ad-muted); --el-color-info-light-3: #95a0ac; --el-color-info-light-5: #b6bec6; --el-color-info-light-7: #d7dce1; --el-color-info-light-8: var(--ad-border); --el-color-info-light-9: var(--ad-sidebar);
+  --el-text-color-primary: var(--ad-text); --el-text-color-regular: #45515f; --el-text-color-secondary: var(--ad-muted); --el-text-color-placeholder: #7c8794;
+  --el-border-color: #d5dce4; --el-border-color-light: var(--ad-border); --el-border-color-lighter: #edf0f4;
+  --el-border-radius-base: var(--ad-radius); --el-border-radius-small: 4px;
+  --el-bg-color: var(--ad-surface); --el-bg-color-page: var(--ad-bg); --el-bg-color-overlay: var(--ad-surface);
+  --el-fill-color: #edf1f5; --el-fill-color-light: var(--ad-sidebar); --el-fill-color-lighter: var(--ad-bg); --el-fill-color-blank: var(--ad-surface);
+  --el-component-size: 32px; --el-component-size-small: 32px;
+  --el-box-shadow-light: 0 4px 16px rgb(32 39 49 / 7%); --el-box-shadow: 0 8px 28px rgb(32 39 49 / 10%); --el-box-shadow-dark: 0 10px 32px rgb(32 39 49 / 14%);
 }
-
-html,
-body {
-  margin: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
-}
-
-#app {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
+* { box-sizing: border-box; }
+html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+body { font: 13px/1.5 var(--ad-font); color: var(--ad-text); background: var(--ad-bg); }
+button, input, select, textarea { font-family: inherit; }
+button:not(:disabled), summary { cursor: pointer; }
+button:focus-visible, a:focus-visible, summary:focus-visible, [role='button']:focus-visible { outline: 2px solid var(--ad-primary); outline-offset: 2px; }
+button:disabled { cursor: not-allowed; }
+a { color: var(--ad-primary); }
+h1, h2, h3 { color: var(--ad-text); }
+::selection { background: var(--ad-primary-soft); }
+/* Shared page anatomy. Each page owns its scrolling. */
+.ad-page { min-width: 0; min-height: 0; height: 100%; padding: 16px; background: var(--ad-bg); }
+.ad-page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; min-height: 40px; margin-bottom: 12px; }
+.ad-page-header h1, .ad-page-header h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.ad-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; min-height: 40px; margin-bottom: 8px; }
+.ad-surface { background: var(--ad-surface); border: 1px solid var(--ad-border); border-radius: var(--ad-panel-radius); }
+.ad-row-actions { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.ad-name-button { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: none; color: var(--ad-text); font: inherit; font-weight: 500; text-align: left; vertical-align: middle; }
+.ad-name-button:hover { color: var(--ad-primary); text-decoration: underline; text-underline-offset: 3px; }
+.ad-metadata { color: var(--ad-muted); font-size: 12px; overflow-wrap: anywhere; }
+.ad-status { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; white-space: nowrap; }
+.ad-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 32px 16px; text-align: center; color: var(--ad-muted); }
+.ad-empty-state h3 { margin: 0; font-size: 16px; font-weight: 500; }
+.ad-empty-state p { margin: 0; max-width: 440px; }
+.el-button { font-weight: 500; }
+.el-button + .el-button { margin-left: 8px; }
+.el-button.is-link, .el-button.is-text { font-size: inherit; }
+.el-form-item { margin-bottom: 16px; }
+.el-form-item__label { font-size: 13px; color: var(--ad-text); }
+.el-form-item__error { position: static; padding-top: 4px; line-height: 1.5; }
+.el-form-item__content { min-width: 0; }
+.el-input, .el-select, .el-textarea { font-size: 13px; }
+.el-table { --el-table-header-text-color: var(--ad-muted); --el-table-header-bg-color: var(--ad-sidebar); --el-table-row-hover-bg-color: var(--ad-bg); --el-table-border-color: var(--ad-border); font-size: 12px; }
+.el-table .el-table__cell { padding: 0; height: 36px; }
+.el-table .cell { padding: 0 10px; line-height: 24px; }
+.el-table th.el-table__cell { font-weight: 500; }
+.el-table .el-button { font-size: 12px; }
+.el-table .el-button:not(.is-link):not(.is-text) { height: 24px; padding: 4px 8px; }
+.el-table .el-tag { max-width: 100%; font-size: 12px; height: 22px; }
+.el-card { --el-card-border-radius: var(--ad-panel-radius); --el-card-padding: 16px; }
+.el-card.is-always-shadow, .el-card.is-hover-shadow:hover { box-shadow: none; }
+.el-card__header { padding: 12px 16px; }
+.el-tag { font-weight: 400; }
+.el-tabs__item { font-size: 13px; font-weight: 500; height: 36px; }
+.el-tabs__nav-wrap::after { height: 1px; background-color: var(--ad-border); }
+.el-pagination { --el-pagination-font-size: 12px; --el-pagination-button-height: 28px; --el-pagination-button-width: 28px; min-height: 36px; }
+.el-dialog { --el-dialog-border-radius: 8px; --el-dialog-padding-primary: 16px; margin: 24px auto; max-width: calc(100vw - 32px); max-height: calc(100dvh - 48px); display: flex; flex-direction: column; }
+.el-dialog__header { flex-shrink: 0; margin-right: 0; padding-bottom: 12px; border-bottom: 1px solid var(--ad-border); }
+.el-dialog__title { font-size: 16px; font-weight: 600; }
+.el-dialog__body { flex: 1; min-height: 0; overflow: auto; padding-top: 16px; overscroll-behavior: contain; color: var(--ad-text); }
+.el-dialog__footer { flex-shrink: 0; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--ad-border); }
+.el-drawer { max-width: 100vw; }
+.el-drawer__header { margin-bottom: 0; padding: 16px; border-bottom: 1px solid var(--ad-border); color: var(--ad-text); }
+.el-drawer__title { font-size: 16px; font-weight: 600; }
+.el-drawer__body { padding: 16px; min-height: 0; overflow: auto; }
+.el-drawer__footer { padding: 12px 16px; border-top: 1px solid var(--ad-border); }
+.el-message-box { max-width: calc(100vw - 32px); border-radius: 8px; padding: 16px; }
+.el-message-box__title { font-size: 16px; }
+.el-message-box__message { overflow-wrap: anywhere; }
+.el-dropdown-menu__item, .el-select-dropdown__item { font-size: 13px; }
+.el-tooltip__popper, .el-popper { max-width: min(560px, calc(100vw - 24px)); overflow-wrap: anywhere; }
+.el-empty { padding: 24px 12px; }
+.el-empty__description { margin-top: 12px; }
+.el-empty__description p { color: var(--ad-muted); font-size: 13px; }
+.el-alert { --el-alert-padding: 8px 12px; border-radius: 6px; }
+.el-alert__title { font-size: 13px; }
+.el-tree { --el-tree-node-hover-bg-color: var(--ad-bg); --el-tree-text-color: var(--ad-text); }
+.el-tree-node__content { font-size: 12px; }
+.el-loading-spinner .el-loading-text { font-size: 13px; }
+/* body class reaches overlays, unlike a selector on the mobile layout alone. */
+body.ad-mobile { --el-font-size-base: 14px; --el-font-size-small: 14px; --el-font-size-extra-small: 14px; --el-component-size: 44px; --el-component-size-small: 44px; font-size: 14px; }
+body.ad-mobile :is(.el-button, .el-dropdown-menu__item, .el-select-dropdown__item, .el-radio, .el-checkbox) { min-height: 44px; font-size: 14px; }
+body.ad-mobile :is(.el-input__inner, .el-textarea__inner, .el-select__input) { font-size: 16px; }
+body.ad-mobile :is(.el-form-item__label, .el-form-item__error, .el-tabs__item, .el-alert__title, .el-empty__description p, .el-descriptions__cell, .el-tag, .ad-metadata) { font-size: 14px; }
+body.ad-mobile .el-dialog { margin: 12px auto; max-width: calc(100vw - 16px); max-height: calc(100dvh - 24px); }
+body.ad-mobile .el-message-box { max-width: calc(100vw - 16px); }
+body.ad-mobile .el-dialog__footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+body.ad-mobile .el-dialog__footer .el-button { margin-left: 0; }
+body.ad-mobile .el-drawer { max-width: 100vw; }
+body.ad-mobile .el-table { font-size: 14px; }
+body.ad-mobile .el-table .el-table__cell { min-height: 44px; height: 44px; }
+body.ad-mobile .el-table .el-button { min-height: 44px; height: auto; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }

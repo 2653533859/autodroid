@@ -27,7 +27,7 @@ function manageEnvironment(){emit('update:modelValue',false);editEnvironment?.()
 async function copyExample(){try{await navigator.clipboard.writeText(typeof selected.value.example==='string'?selected.value.example:JSON.stringify(selected.value.example,null,2));ElMessage.success('已复制')}catch{ElMessage.error('复制失败，请手动选择复制')}}
 </script>
 <template>
-  <el-dialog :model-value="modelValue" :title="fieldOnly ? '选择响应字段' : allowStepReferences ? '插入引用' : '选择环境变量'" width="min(680px, 94vw)" append-to-body @update:model-value="emit('update:modelValue', $event)" @open="selected = null; filter = ''; tab = allowStepReferences ? preferredTab || 'steps' : 'env'">
+  <el-dialog class="ad-dialog" :model-value="modelValue" :title="fieldOnly ? '选择响应字段' : allowStepReferences ? '插入引用' : '选择环境变量'" width="min(680px, 94vw)" append-to-body @update:model-value="emit('update:modelValue', $event)" @open="selected = null; filter = ''; tab = allowStepReferences ? preferredTab || 'steps' : 'env'">
     <el-tabs v-model="tab">
       <el-tab-pane v-if="allowStepReferences" :label="fieldOnly ? '当前接口响应' : '前序步骤的输出'" name="steps">
         <el-input v-model="filter" placeholder="搜索字段" clearable />
@@ -47,4 +47,5 @@ async function copyExample(){try{await navigator.clipboard.writeText(typeof sele
     <template #footer><el-button @click="emit('update:modelValue', false)">取消</el-button><el-button v-if="tab === 'steps'" type="primary" :disabled="!selected || selected.disabled" @click="choose">{{ fieldOnly ? '选择此字段' : '引用此字段' }}</el-button></template>
   </el-dialog>
 </template>
-<style scoped>.reference-tree{max-height:320px;overflow:auto;margin-top:12px}.hint,.muted,small{color:#8b95a6;font-size:12px}.empty-hint{padding:16px 0;font-size:13px;color:#687386;line-height:22px}.variable{display:flex;gap:16px;margin:12px 0}.field-row{display:flex;gap:14px;align-items:center;min-width:0}.field-row small{overflow:hidden;text-overflow:ellipsis}.selection{border-top:1px solid #ebeef5;margin-top:12px;padding-top:12px;overflow-wrap:anywhere}.selection pre{max-height:140px;overflow:auto;white-space:pre-wrap}summary{cursor:pointer;font-size:12px;margin-top:8px}</style>
+<style scoped>.reference-tree{max-height:320px;overflow:auto;margin-top:12px}.hint,.muted,small{color:var(--ad-muted);font-size:12px}.empty-hint{padding:16px 0;font-size:13px;color:var(--ad-muted);line-height:22px}.variable{display:flex;gap:16px;margin:12px 0}.field-row{display:flex;gap:14px;align-items:center;min-width:0}.field-row small{overflow:hidden;text-overflow:ellipsis}.selection{border-top:1px solid var(--ad-border);margin-top:12px;padding-top:12px;overflow-wrap:anywhere}.selection pre{max-height:140px;overflow:auto;white-space:pre-wrap}summary{cursor:pointer;font-size:12px;margin-top:8px}@media(max-width:760px){.hint,.muted,small,.empty-hint,.variable{font-size:14px}.variable{flex-wrap:wrap;gap:4px 12px}.field-row{flex-wrap:wrap;gap:4px}.field-row small{max-width:100%}.reference-tree :deep(.el-tree-node__content){height:auto;min-height:44px}}
+</style>

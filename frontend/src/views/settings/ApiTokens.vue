@@ -117,13 +117,12 @@ onMounted(loadTokens)
 </script>
 
 <template>
-  <div class="tokens-page" v-loading="loading">
-    <div class="page-header">
+  <div class="tokens-page ad-page" v-loading="loading">
+    <div class="page-header ad-page-header">
       <div>
         <h2>API Token</h2>
         <p class="page-desc">
-          用于外部 CI（Jenkins / GitLab CI / GitHub Actions）调用 AutoDroid 接口的长效机器凭证。
-          详见 <code>docs/CI_INTEGRATION.md</code> 接入指南。
+          连接 CI 系统，管理用于自动化调用的机器凭证。
         </p>
       </div>
       <div class="header-actions">
@@ -132,8 +131,8 @@ onMounted(loadTokens)
       </div>
     </div>
 
-    <section class="table-panel">
-      <div v-if="isAdmin" class="table-toolbar">
+    <section class="table-panel ad-surface">
+      <div v-if="isAdmin" class="table-toolbar ad-toolbar">
         <el-switch
           v-model="showAll"
           active-text="查看所有人的 Token"
@@ -142,7 +141,7 @@ onMounted(loadTokens)
         />
       </div>
 
-      <el-table :data="tokens" row-key="id" class="token-table">
+      <el-table :data="tokens" row-key="id" class="token-table ad-table">
         <el-table-column label="名称" prop="name" min-width="160" />
         <el-table-column label="Token 前缀" width="160">
           <template #default="{ row }">
@@ -152,10 +151,10 @@ onMounted(loadTokens)
         <el-table-column v-if="showAll" label="属主" prop="username" width="130">
           <template #default="{ row }">{{ row.username || '-' }}</template>
         </el-table-column>
-        <el-table-column label="创建时间" width="170">
+        <el-table-column label="创建时间" width="155">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="最近使用" width="170">
+        <el-table-column label="最近使用" width="155">
           <template #default="{ row }">{{ formatDate(row.last_used_at) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -183,10 +182,10 @@ onMounted(loadTokens)
       </el-table>
     </section>
 
-    <el-dialog
+    <el-dialog class="ad-dialog"
       v-model="createDialogVisible"
       title="创建 API Token"
-      width="520px"
+      width="min(520px, calc(100vw - 32px))"
       :close-on-click-modal="false"
       @closed="handleCloseCreateDialog"
     >
@@ -196,7 +195,7 @@ onMounted(loadTokens)
         ref="createFormRef"
         :model="createForm"
         :rules="createRules"
-        label-position="top"
+        label-position="top" scroll-to-error
         @submit.prevent
       >
         <el-form-item label="Token 名称" prop="name">
@@ -245,8 +244,8 @@ onMounted(loadTokens)
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 24px;
-  background: #f2f3f5;
+  padding: 16px;
+  background: var(--ad-bg);
 }
 
 .page-header {
@@ -259,23 +258,23 @@ onMounted(loadTokens)
 
 .page-header h2 {
   margin: 0 0 6px;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
-  color: #1f2933;
+  color: var(--ad-text);
 }
 
 .page-desc {
   margin: 0;
-  color: #909399;
+  color: var(--ad-muted);
   font-size: 13px;
 }
 
 .page-desc code {
-  background: #eef0f3;
+  background: var(--ad-bg);
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 12px;
-  color: #606266;
+  color: var(--ad-text);
 }
 
 .header-actions {
@@ -290,9 +289,9 @@ onMounted(loadTokens)
   display: flex;
   flex-direction: column;
   padding: 16px;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--ad-border);
+  border-radius: var(--ad-panel-radius);
+  background: var(--ad-surface);
 }
 
 .table-toolbar {
@@ -307,11 +306,11 @@ onMounted(loadTokens)
 }
 
 .token-prefix {
-  background: #f0f2f5;
+  background: var(--ad-bg);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--ad-radius);
   font-size: 12px;
-  color: #606266;
+  color: var(--ad-text);
 }
 
 .token-result {
@@ -329,8 +328,8 @@ onMounted(loadTokens)
 .token-plaintext {
   flex: 1;
   min-width: 0;
-  background: #1f2933;
-  color: #7ee787;
+  background: var(--ad-primary-soft);
+  color: var(--ad-text);
   padding: 10px 12px;
   border-radius: 6px;
   font-size: 13px;
@@ -352,4 +351,5 @@ onMounted(loadTokens)
     width: 100%;
   }
 }
+@media(max-width:760px){.header-actions{flex-wrap:wrap}.page-header h2{font-size:20px}.page-desc,.setting-value,.setting-title,.token-prefix,.token-plaintext{font-size:14px}.token-display{align-items:stretch;flex-direction:column}.table-panel{overflow:auto;flex-shrink:0;min-height:260px}.tokens-page,.admin-page{overflow:auto}.password-panel{padding:16px}.user-cell{flex-wrap:wrap}}
 </style>

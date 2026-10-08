@@ -154,8 +154,8 @@ const handleDeleteCase = async (caseItem, event) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-right: 1px solid #e4e7ed;
+  background: var(--ad-surface);
+  border-right: 1px solid var(--ad-border);
 }
 
 .explorer-header {
@@ -163,16 +163,16 @@ const handleDeleteCase = async (caseItem, event) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--ad-border);
   height: 57px;
   box-sizing: border-box;
-  background-color: #fafafa;
+  background-color: var(--ad-bg);
 }
 
 .title {
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--ad-text);
 }
 
 .actions {
@@ -198,26 +198,26 @@ const handleDeleteCase = async (caseItem, event) => {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #606266;
+  color: var(--ad-muted);
 }
 
 .case-item:hover {
-  background: #f5f7fa;
+  background: var(--ad-bg);
 }
 
 .case-item.active {
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--ad-primary-soft);
+  color: var(--ad-primary);
 }
 
 .case-icon {
   margin-right: 10px;
   font-size: 16px;
-  color: #909399;
+  color: var(--ad-muted);
 }
 
 .case-item.active .case-icon {
-  color: #409eff;
+  color: var(--ad-primary);
 }
 
 .case-name {

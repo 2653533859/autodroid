@@ -107,20 +107,20 @@ const removeStep = (index) => {
   display: flex;
   align-items: flex-start;
   padding: 10px;
-  background: #fff;
-  border: 1px solid #dcdfe6;
+  background: var(--ad-surface);
+  border: 1px solid var(--ad-border);
   border-radius: 4px;
   gap: 10px;
 }
 
 .step-item:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  border-color: var(--ad-primary);
+  box-shadow: none;
 }
 
 .handle {
   cursor: move;
-  color: #909399;
+  color: var(--ad-muted);
   font-size: 20px;
   line-height: 1;
   padding-top: 5px;

@@ -82,6 +82,7 @@ const refreshAll = async () => {
 }
 
 const startSession = async () => {
+    if (starting.value) return
     if (!form.package_name.trim()) {
         ElMessage.warning('请输入目标包名')
         return
@@ -115,6 +116,7 @@ const startSession = async () => {
 }
 
 const submitMarker = async (label = '') => {
+    if (marking.value) return
     const session = activeSession.value
     const finalLabel = String(label || markerLabel.value || '').trim()
     if (!session) {
@@ -141,6 +143,7 @@ const submitMarker = async (label = '') => {
 }
 
 const stopSession = async () => {
+    if (stopping.value) return
     const session = activeSession.value
     if (!session) {
         ElMessage.warning('当前没有进行中的录制会话')
@@ -398,7 +401,7 @@ onUnmounted(() => {
                             <span class="section-tip">手动录制历史和报告入口</span>
                         </div>
                     </template>
-                    <el-table :data="recentSessions" :header-cell-style="{ background: '#f7f4ec', color: '#6b6254' }">
+                    <el-table :data="recentSessions">
                         <el-table-column label="开始时间" min-width="150">
                             <template #default="{ row }">{{ formatDateTime(row.started_at || row.created_at) }}</template>
                         </el-table-column>
@@ -442,7 +445,7 @@ onUnmounted(() => {
 <style scoped>
 .fluency-page {
     height: 100%;
-    background: #f2f3f5;
+    background: var(--ad-bg);
 }
 
 .content-wrapper {
@@ -450,7 +453,7 @@ onUnmounted(() => {
     padding: 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     overflow-y: auto;
     overflow-x: hidden;
     box-sizing: border-box;
@@ -459,19 +462,19 @@ onUnmounted(() => {
 .hero-panel {
     display: flex;
     justify-content: space-between;
-    gap: 20px;
+    gap: 16px;
     align-items: flex-start;
     padding: 20px 24px;
-    border-radius: 4px;
-    background: #fff;
-    border: 1px solid #ebeef5;
+    border-radius: var(--ad-radius);
+    background: var(--ad-surface);
+    border: 1px solid var(--ad-border);
 }
 
 .hero-title {
     margin: 0;
-    font-size: 24px;
+    font-size: 20px;
     line-height: 1.2;
-    color: #303133;
+    color: var(--ad-text);
 }
 
 .hero-actions {
@@ -483,13 +486,13 @@ onUnmounted(() => {
 .fluency-grid {
     display: grid;
     grid-template-columns: 1.05fr 1fr;
-    gap: 10px;
+    gap: 8px;
 }
 
 .config-card,
 .record-card,
 .history-card {
-    border-radius: 4px;
+    border-radius: var(--ad-radius);
 }
 
 .history-card {
@@ -504,7 +507,7 @@ onUnmounted(() => {
 }
 
 .section-tip {
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
 }
 
@@ -520,20 +523,20 @@ onUnmounted(() => {
     gap: 16px;
     align-items: center;
     padding: 12px 14px;
-    border-radius: 4px;
-    background: #fafafa;
-    border: 1px solid #f0f2f5;
+    border-radius: var(--ad-radius);
+    background: var(--ad-bg);
+    border: 1px solid var(--ad-bg);
 }
 
 .toggle-title {
-    font-size: 14px;
-    color: #303133;
+    font-size: 13px;
+    color: var(--ad-text);
     font-weight: 600;
 }
 
 .toggle-desc {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     margin-top: 4px;
 }
 
@@ -550,8 +553,8 @@ onUnmounted(() => {
     width: fit-content;
     padding: 6px 12px;
     border-radius: 999px;
-    background: #fff3f0;
-    color: #f56c6c;
+    background: color-mix(in srgb, var(--ad-danger) 7%, white);
+    color: var(--ad-danger);
     font-weight: 600;
 }
 
@@ -559,7 +562,7 @@ onUnmounted(() => {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: #f56c6c;
+    background: var(--ad-danger);
 }
 
 .live-meta {
@@ -570,25 +573,25 @@ onUnmounted(() => {
 
 .meta-item {
     padding: 12px 14px;
-    border-radius: 4px;
-    background: #fafafa;
-    border: 1px solid #ebeef5;
+    border-radius: var(--ad-radius);
+    background: var(--ad-bg);
+    border: 1px solid var(--ad-border);
 }
 
 .meta-label {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
     margin-bottom: 6px;
 }
 
 .meta-value {
     font-size: 15px;
-    color: #303133;
+    color: var(--ad-text);
     font-weight: 600;
 }
 
 .meta-value.accent {
-    color: #409EFF;
+    color: var(--ad-primary);
 }
 
 .marker-input {
@@ -604,11 +607,11 @@ onUnmounted(() => {
 
 .quick-label {
     font-size: 12px;
-    color: #909399;
+    color: var(--ad-muted);
 }
 
 .quick-chip {
-    color: #409EFF;
+    color: var(--ad-primary);
 }
 
 .marker-list {
@@ -616,18 +619,18 @@ onUnmounted(() => {
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .marker-row {
     display: grid;
     grid-template-columns: 82px minmax(0, 1fr);
-    gap: 10px;
+    gap: 8px;
     align-items: center;
     padding: 12px 14px;
-    border-radius: 4px;
-    background: #fafafa;
-    border: 1px dashed #dcdfe6;
+    border-radius: var(--ad-radius);
+    background: var(--ad-bg);
+    border: 1px dashed var(--ad-border);
 }
 
 .marker-time,
@@ -637,18 +640,18 @@ onUnmounted(() => {
 }
 
 .marker-time {
-    color: #409EFF;
+    color: var(--ad-primary);
     font-weight: 600;
 }
 
 .marker-name {
-    color: #303133;
+    color: var(--ad-text);
     font-weight: 600;
 }
 
 .marker-activity {
     grid-column: 2;
-    color: #909399;
+    color: var(--ad-muted);
     font-size: 12px;
     word-break: break-all;
 }
@@ -660,19 +663,19 @@ onUnmounted(() => {
     justify-content: center;
     flex-direction: column;
     text-align: center;
-    color: #909399;
+    color: var(--ad-muted);
     padding: 32px;
 }
 
 .empty-icon {
     font-size: 30px;
     margin-bottom: 14px;
-    color: #409EFF;
+    color: var(--ad-primary);
 }
 
 .empty-title {
     font-size: 18px;
-    color: #303133;
+    color: var(--ad-text);
     font-weight: 700;
 }
 
@@ -703,5 +706,12 @@ onUnmounted(() => {
     .live-meta {
         grid-template-columns: 1fr;
     }
+}
+
+@media (max-width: 767px) {
+  :deep(.el-button), :deep(.el-radio-button__inner), :deep(.el-select__wrapper), :deep(.el-collapse-item__header) { min-height: 44px; }
+  :deep(.el-input__inner), :deep(.el-textarea__inner) { font-size: 16px; }
+  :deep(.el-form-item__label), :deep(.el-table), :deep(.el-descriptions), :deep(.el-tabs__item), :deep(.el-collapse-item__content) { font-size: 14px; }
+  :deep(.el-table__cell) { font-size: 14px; }
 }
 </style>

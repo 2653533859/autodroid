@@ -1,6 +1,6 @@
 <template>
   <div class="log-console" :class="{ minimized: isMinimized }">
-    <div class="console-header" @click="isMinimized = !isMinimized">
+    <div class="console-header" role="button" tabindex="0" :aria-expanded="!isMinimized" @keydown.enter="isMinimized = !isMinimized" @keydown.space.prevent="isMinimized = !isMinimized" @click="isMinimized = !isMinimized">
       <span class="title">
         <span class="icon">📋</span>
         执行日志
@@ -55,7 +55,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['stepUpdate', 'runStart', 'runComplete'])
+const emit = defineEmits(['stepUpdate', 'runStart', 'runComplete', 'runError'])
 
 const isMinimized = ref(true)
 const logs = ref([])
@@ -90,8 +90,8 @@ const connect = (caseId, envId = null, deviceSerial = null) => {
   let wsUrl = `${protocol}//${window.location.host}/ws/run/${caseId}`
   
   const queryParams = []
-  if (envId) queryParams.push(`env_id=${envId}`)
-  if (deviceSerial) queryParams.push(`device_serial=${deviceSerial}`)
+  if (envId) queryParams.push(`env_id=${encodeURIComponent(envId)}`)
+  if (deviceSerial) queryParams.push(`device_serial=${encodeURIComponent(deviceSerial)}`)
   
   if (queryParams.length > 0) {
     wsUrl += `?${queryParams.join('&')}`
@@ -147,6 +147,7 @@ const connect = (caseId, envId = null, deviceSerial = null) => {
     }
     
     if (data.type === 'error') {
+      emit('runError', data)
       runStatus.value = 'failed'
       logs.value.push({
         timestamp: new Date().toISOString(),
@@ -157,6 +158,7 @@ const connect = (caseId, envId = null, deviceSerial = null) => {
   }
   
   ws.onerror = (err) => {
+    emit('runError', err)
     runStatus.value = 'failed'
     logs.value.push({
       timestamp: new Date().toISOString(),
@@ -168,6 +170,7 @@ const connect = (caseId, envId = null, deviceSerial = null) => {
   ws.onclose = () => {
     if (runStatus.value === 'running') {
       runStatus.value = 'idle'
+      emit('runError', { message: '执行连接已断开' })
     }
   }
 }
@@ -232,32 +235,34 @@ onUnmounted(() => {
 
 <style scoped>
 .log-console {
-  background: #fff;
+  background: var(--ad-surface);
   border-radius: 8px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  border: 1px solid var(--ad-border);
   height: 200px;
   transition: height 0.3s ease;
 }
 
 .log-console.minimized {
-  height: 40px;
+  height: 36px;
 }
 
 .console-header {
   display: flex;
   align-items: center;
-  padding: 10px 15px;
-  background: #e6e8eb;
-  border-bottom: 1px solid #ebeef5;
+  padding: 8px 12px;
+  background: var(--ad-bg);
+  border-bottom: 1px solid var(--ad-border);
   cursor: pointer;
   user-select: none;
 }
 
 .console-header .title {
   flex: 1;
-  color: #303133;
+  color: var(--ad-text);
   font-weight: 500;
   display: flex;
   align-items: center;
@@ -269,9 +274,9 @@ onUnmounted(() => {
 }
 
 .console-header .badge {
-  background: #667eea;
-  color: #fff;
-  font-size: 11px;
+  background: var(--ad-primary);
+  color: var(--ad-surface);
+  font-size: 12px;
   padding: 2px 6px;
   border-radius: 10px;
 }
@@ -284,29 +289,29 @@ onUnmounted(() => {
 }
 
 .console-header .status.idle {
-  background: #4a5568;
-  color: #a0aec0;
+  background: var(--ad-bg);
+  color: var(--ad-muted);
 }
 
 .console-header .status.running {
-  background: #3182ce;
-  color: #fff;
-  animation: pulse 1.5s infinite;
+  background: var(--ad-primary);
+  color: var(--ad-surface);
+  font-weight: 500;
 }
 
 .console-header .status.success {
-  background: #38a169;
-  color: #fff;
+  background: var(--ad-success);
+  color: var(--ad-surface);
 }
 
 .console-header .status.failed {
-  background: #e53e3e;
-  color: #fff;
+  background: var(--ad-danger);
+  color: var(--ad-surface);
 }
 
 .console-header .status.aborted {
-  background: #909399;
-  color: #fff;
+  background: var(--ad-muted);
+  color: var(--ad-surface);
 }
 
 @keyframes pulse {
@@ -315,7 +320,7 @@ onUnmounted(() => {
 }
 
 .console-header .toggle {
-  color: #8892b0;
+  color: var(--ad-muted);
   font-size: 12px;
 }
 
@@ -328,7 +333,7 @@ onUnmounted(() => {
 }
 
 .console-body .empty {
-  color: #909399;
+  color: var(--ad-muted);
   text-align: center;
   padding: 20px;
 }
@@ -337,7 +342,7 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   padding: 4px 0;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--ad-border);
 }
 
 .log-item:last-child {
@@ -345,7 +350,7 @@ onUnmounted(() => {
 }
 
 .log-time {
-  color: #718096;
+  color: var(--ad-muted);
   margin-right: 10px;
   flex-shrink: 0;
 }
@@ -355,35 +360,35 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-.log-item.running .log-icon { color: #3182ce; }
-.log-item.success .log-icon { color: #38a169; }
-.log-item.failed .log-icon { color: #e53e3e; }
-.log-item.info .log-icon { color: #667eea; }
+.log-item.running .log-icon { color: var(--ad-primary); }
+.log-item.success .log-icon { color: var(--ad-success); }
+.log-item.failed .log-icon { color: var(--ad-danger); }
+.log-item.info .log-icon { color: var(--ad-primary); }
 
 .log-text {
-  color: #606266;
+  color: var(--ad-muted);
   word-break: break-all;
 }
 
 .log-suggestion {
   display: block;
-  color: #909399;
-  font-size: 11px;
+  color: var(--ad-muted);
+  font-size: 12px;
   margin-top: 2px;
 }
 
 .log-item.failed .log-text {
-  color: #fc8181;
+  color: var(--ad-danger);
 }
 
 .console-footer {
   padding: 8px 15px;
-  background: #fafafa;
-  border-top: 1px solid #ebeef5;
+  background: var(--ad-bg);
+  border-top: 1px solid var(--ad-border);
 }
 
 .report-link {
-  color: #667eea;
+  color: var(--ad-primary);
   text-decoration: none;
   font-size: 13px;
   display: flex;
@@ -392,6 +397,8 @@ onUnmounted(() => {
 }
 
 .report-link:hover {
-  color: #764ba2;
+  color: var(--ad-primary);
 }
+.log-console.minimized .console-body, .log-console.minimized .console-footer { display: none; }
+.console-header { flex-shrink: 0; min-height: 34px; box-sizing: border-box; }
 </style>

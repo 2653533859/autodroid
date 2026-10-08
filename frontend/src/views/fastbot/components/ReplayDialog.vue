@@ -28,7 +28,7 @@ defineExpose({ open })
     <el-dialog
         v-model="visible"
         :title="currentReplayTitle"
-        width="70%"
+        width="min(960px, calc(100vw - 24px))"
         top="8vh"
         destroy-on-close
     >
